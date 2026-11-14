@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>projectmd viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="toolbar">
+  <div id="titlebox"><strong id="ptitle">projectmd</strong><span id="pmeta"></span></div>
+  <nav id="crumbs" aria-label="Previous top-level projects"></nav>
+  <form id="openform" autocomplete="off">
+    <input id="rootinput" type="text" placeholder="/path/to/project.md or URL" spellcheck="false">
+    <button type="submit">Open</button>
+  </form>
+  <div id="tools">
+    <label class="chk"><input type="checkbox" id="wbs" checked> WBS</label>
+    <button id="zout" title="Zoom out (Ctrl+wheel)">&minus;</button>
+    <button id="zin" title="Zoom in (Ctrl+wheel)">+</button>
+    <button id="zfit" title="Fit whole project">Fit</button>
+    <button id="ztoday" title="Scroll to today">Today</button>
+  </div>
+</header>
+<div id="banner" hidden></div>
+<main id="main">
+  <section id="left">
+    <div id="lhead" class="grid"><div>Name</div><div>Start</div><div>Finish</div><div>Duration</div><div>Owner</div></div>
+    <div id="lbody"><div id="lspacer"></div></div>
+  </section>
+  <div id="split" title="Drag to resize"></div>
+  <section id="right">
+    <div id="rhead"><div id="rhinner"></div></div>
+    <div id="rbody"><div id="canvas"><div id="gridlines"></div><div id="today"></div><div id="trows"></div><svg id="deps" xmlns="http://www.w3.org/2000/svg"></svg></div></div>
+  </section>
+  <aside id="detail" hidden></aside>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

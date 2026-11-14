@@ -1,0 +1,15 @@
+# Build output
+parser/target/
+
+# Development notes kept out of version control (decisions, reviews, handoff)
+dev/
+
+# Local tool configuration
+.claude/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Local benchmark links
+.bench*

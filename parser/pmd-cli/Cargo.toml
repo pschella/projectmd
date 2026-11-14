@@ -1,0 +1,13 @@
+[package]
+name = "pmd-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pmd"
+path = "src/main.rs"
+
+[dependencies]
+pmd-core = { path = "../pmd-core" }
+serde_json = "1"

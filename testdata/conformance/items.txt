@@ -1,0 +1,535 @@
+in:     - [ ] Test 12m cable harness  3d  owner: @jan
+kind:   task
+check:  open
+title:  Test 12m cable harness
+suffix: duration=3d owner=@jan
+
+in:     - [ ] Fix issue: retry logic  2w
+kind:   task
+check:  open
+title:  Fix issue: retry logic
+suffix: duration=2w
+
+in:     - [ ] Review #3 comments  1w  ^review
+kind:   task
+check:  open
+title:  Review #3 comments
+suffix: duration=1w id=review
+
+in:     - [ ] Tooling release  #public ^tr  approver: Marco Rossi <m@example.com>
+kind:   task
+check:  open
+title:  Tooling release
+suffix: tag=public id=tr approver=Marco Rossi <m@example.com>
+
+in:     - [ ] Seat concept  2027-Q1 .. 2027-Q2
+kind:   task
+check:  open
+title:  Seat concept
+suffix: range=2027-Q1..2027-Q2
+
+in:     - [ ] 2w
+kind:   task
+check:  open
+title:  2w
+suffix:
+
+in:     - [ ] Ship it  after: ^a  after: ^b
+kind:   task
+check:  open
+title:  Ship it
+suffix: after=^a after=^b
+
+in:     - [ ] Explain `after: ^x` syntax
+kind:   task
+check:  open
+title:  Explain `after: ^x` syntax
+suffix:
+
+in:     - [x] 2026-10-31 Cell chemistry selected  ^chemistry
+kind:   milestone
+check:  done
+date:   2026-10-31
+title:  Cell chemistry selected
+suffix: id=chemistry
+
+in:     - [ ] 2027-06-30 Design freeze  #public  ^design-freeze
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  Design freeze
+suffix: tag=public id=design-freeze
+
+in:     - [ ] Thermal validation  8w  after: ^design-freeze
+kind:   task
+check:  open
+title:  Thermal validation
+suffix: duration=8w after=^design-freeze
+
+in:     - [ ] [Cooling loop](cooling/cooling.md)  by: 2027-03-31
+kind:   subproject
+check:  open
+title:  Cooling loop
+suffix: by=2027-03-31
+
+in:     - [-] Old inverter test
+kind:   task
+check:  cancelled
+title:  Old inverter test
+suffix:
+
+in:     - [X] Uppercase done mark
+kind:   task
+check:  done
+title:  Uppercase done mark
+suffix:
+
+in:     - [ ] Module & pack design  12w  owner: @priya
+kind:   task
+check:  open
+title:  Module & pack design
+suffix: duration=12w owner=@priya
+
+in:     * [ ] Star bullet  2w
+kind:   task
+check:  open
+title:  Star bullet
+suffix: duration=2w
+
+in:     + [ ] Plus bullet
+kind:   task
+check:  open
+title:  Plus bullet
+suffix:
+
+in:     - [ ] Fix    bug   2w
+kind:   task
+check:  open
+title:  Fix    bug
+suffix: duration=2w
+
+in:     - Supplier prefers Q2 delivery.
+kind:   prose
+check:  none
+title:
+suffix:
+
+in:     - Supplier prefers Q2 delivery 2026-10-31
+kind:   prose
+check:  none
+title:
+suffix:
+# note: a date that is not leading does not make the item planning; it is ignored.
+
+in:     - 2027-06-30 Pack sign-off
+kind:   milestone
+check:  none
+date:   2027-06-30
+title:  Pack sign-off
+suffix:
+
+in:     - [ ] 2027-06 Launch window
+kind:   milestone
+check:  open
+date:   2027-06
+title:  Launch window
+suffix:
+
+in:     - [ ] 2027-Q3 Beta
+kind:   milestone
+check:  open
+date:   2027-Q3
+title:  Beta
+suffix:
+
+in:     - [ ] 2027-H2 Stable
+kind:   milestone
+check:  open
+date:   2027-H2
+title:  Stable
+suffix:
+
+in:     - [ ] 2027-W14 Freeze
+kind:   milestone
+check:  open
+date:   2027-W14
+title:  Freeze
+suffix:
+
+in:     - [ ] 2027-06-30
+kind:   task
+check:  open
+title:  2027-06-30
+suffix:
+# note: nothing follows the date, so it is not a leading date; the date text is the title. A writer probably meant a milestone with a title.
+
+in:     - [ ] 2027-06-30 2w
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  2w
+suffix:
+
+in:     - [ ] 2w  3d
+kind:   task
+check:  open
+title:  2w
+suffix: duration=3d
+# note: the title must keep one atom, so 2w stays in the title and 3d is the suffix.
+
+in:     - [ ] Release 2027-06
+kind:   task
+check:  open
+title:  Release
+suffix: date=2027-06
+# note: a bare date in the suffix makes a task, not a milestone. Compare the leading-date form "2027-06 Release".
+
+in:     - [ ] Plan 2w sprint
+kind:   task
+check:  open
+title:  Plan 2w sprint
+suffix:
+# note: suffix extraction stops at "sprint", so the duration is not recorded. Writer probably expects a duration or a title only.
+
+in:     - [ ] Compare 2026-01 .. 2026-03 options
+kind:   task
+check:  open
+title:  Compare 2026-01 .. 2026-03 options
+suffix:
+
+in:     - [ ] 2026-01 .. 2026-03 Kickoff
+kind:   milestone
+check:  open
+date:   2026-01
+title:  .. 2026-03 Kickoff
+suffix:
+# note: undesirable. A leading range is not recognised; the first date is taken as a leading month and ".. 2026-03" stays in the title.
+
+in:     - [ ] 2026-01..2026-03 Kickoff
+kind:   task
+check:  open
+title:  2026-01..2026-03 Kickoff
+suffix:
+# note: undesirable. A single-word range is not a date expression, so there is no leading date and no range.
+
+in:     - [ ] Migrate .. 2027-06
+kind:   task
+check:  open
+title:  Migrate ..
+suffix: date=2027-06
+# note: undesirable. A stray ".." stays at the end of the title.
+
+in:     - [ ] Phase 2026-01..2026-03
+kind:   task
+check:  open
+title:  Phase
+suffix: range=2026-01..2026-03
+
+in:     - [ ] Load test  2w  owner:
+kind:   task
+check:  open
+title:  Load test  2w  owner:
+suffix:
+# note: undesirable. A key with no value is not a key; the duration is also stranded in the title.
+
+in:     - [ ] Design owner: Jan Doe
+kind:   task
+check:  open
+title:  Design owner: Jan Doe
+suffix:
+# note: undesirable and silent. Owner needs an email or a handle; no diagnostic is defined.
+
+in:     - [ ] Design  owner: Jan Doe <jan@example.com>
+kind:   task
+check:  open
+title:  Design
+suffix: owner=Jan Doe <jan@example.com>
+
+in:     - [ ] Design  owner: Doe, Jane <jane@example.com>
+kind:   task
+check:  open
+title:  Design
+suffix: owner=Doe, Jane <jane@example.com>
+
+in:     - [ ] Design  owner: <jane@example.com>
+kind:   task
+check:  open
+title:  Design owner: <jane@example.com>
+suffix:
+# note: a bare email is not a person (no name words). Undesirable: the owner is silently lost.
+
+in:     - [ ] Review  by: Friday
+kind:   task
+check:  open
+title:  Review
+suffix: by=Friday
+# note: undesirable. "by" accepts any word; a non-date, non-id value should be rejected.
+
+in:     - [ ] Review  by: ^chemistry
+kind:   task
+check:  open
+title:  Review
+suffix: by=^chemistry
+
+in:     - [ ] Review  by: 2027-06-30 .. 2027-07-15
+kind:   task
+check:  open
+title:  Review
+suffix: by=2027-06-30..2027-07-15
+
+in:     - [ ] Ship  after: file.md
+kind:   task
+check:  open
+title:  Ship
+suffix: after=file.md
+
+in:     - [ ] Ship  after: [Cooling](cooling/cooling.md)
+kind:   task
+check:  open
+title:  Ship
+suffix: after=[Cooling](cooling/cooling.md)
+
+in:     - [ ] Ship  replaced-by: ^new-milestone
+kind:   task
+check:  open
+title:  Ship
+suffix: replaced-by=^new-milestone
+
+in:     - [ ] Ship  owner: @jan  owner: @piet
+kind:   task
+check:  open
+title:  Ship
+suffix: owner=@jan owner=@piet
+# note: E-SYNTAX (owner is not repeatable). The suffix keeps both; the last value wins for tooling.
+
+in:     - [ ] Build `owner: @jan` tooling
+kind:   task
+check:  open
+title:  Build `owner: @jan` tooling
+suffix:
+
+in:     - [ ] Use `foo  2w owner: @jan
+kind:   task
+check:  open
+title:  Use `foo  2w owner: @jan
+suffix:
+# note: undesirable. An unclosed backtick makes the rest of the line one code atom, so the duration and owner are swallowed.
+
+in:     - [ ] Write [owner: Jan](jan.md)
+kind:   task
+check:  open
+title:  Write [owner: Jan](jan.md)
+suffix:
+
+in:     - [ ] Contact <jan@example.com>  2w
+kind:   task
+check:  open
+title:  Contact <jan@example.com>
+suffix: duration=2w
+
+in:     - [ ] Spec [inv][nope]  owner: @jan
+kind:   task
+check:  open
+title:  Spec [inv][nope]
+suffix: owner=@jan
+# note: no definition for "nope", so the reference link is text, not a link.
+
+in:     - [ ] [Spec](spec.md "id:ns/spec")
+kind:   subproject
+check:  open
+title:  Spec
+suffix:
+# note: the link title is kept on the node (link title), not as a suffix element.
+
+in:     - [ ] [Spec](spec.md#part)  2w
+kind:   task
+check:  open
+title:  [Spec](spec.md#part)
+suffix: duration=2w
+# note: a fragment makes the link a task, not a subproject.
+
+in:     - [ ] [Spec](spec.md) and more
+kind:   task
+check:  open
+title:  [Spec](spec.md) and more
+suffix:
+# note: undesirable. The link target is not kept on the node, so the file dependency is invisible to the graph loader.
+
+in:     - [ ] 2027-06-30 [Cooling](cooling/cooling.md)
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  [Cooling](cooling/cooling.md)
+suffix:
+# note: undesirable. Leading date wins over the subproject rule, so this is a milestone; the suffix-date form below is a subproject.
+
+in:     - [ ] [Cooling](cooling/cooling.md) 2027-06
+kind:   subproject
+check:  open
+title:  Cooling
+suffix: date=2027-06
+# note: asymmetric with the leading-date form above.
+
+in:     - [ ] #urgent Fix bug
+kind:   task
+check:  open
+title:  #urgent Fix bug
+suffix:
+# note: undesirable. Leading tags are not extracted; only suffix tokens are.
+
+in:     - [ ] Fix bug  #public  #urgent
+kind:   task
+check:  open
+title:  Fix bug
+suffix: tag=public tag=urgent
+
+in:     - [ ] Fix bug  #3
+kind:   task
+check:  open
+title:  Fix bug  #3
+suffix:
+
+in:     - [ ] Fix bug  ^bad.id
+kind:   task
+check:  open
+title:  Fix bug  ^bad.id
+suffix:
+
+in:     - [ ] Fix bug  Owner: @jan
+kind:   task
+check:  open
+title:  Fix bug
+suffix: owner=@jan
+
+in:     - [ ] Fix bug  owner:@jan
+kind:   task
+check:  open
+title:  Fix bug  owner:@jan
+suffix:
+# note: undesirable. Keys need a space after the colon; this is one word.
+
+in:     - [ ] Fix bug  1m
+kind:   task
+check:  open
+title:  Fix bug
+suffix: duration=1m
+# note: 1m is open (30 days or calendar month); the parser must not decide silently.
+
+in:     - [ ] Fix bug  0d
+kind:   task
+check:  open
+title:  Fix bug  0d
+suffix:
+
+in:     - [ ] Fix bug  2026-W53
+kind:   task
+check:  open
+title:  Fix bug
+suffix: date=2026-W53
+
+in:     - [ ] Fix bug  2027-W53
+kind:   task
+check:  open
+title:  Fix bug
+suffix: date=2027-W53
+# note: E-DATE (2027 has 52 ISO weeks). Unclear whether an invalid date token is still a token; this assumes yes.
+
+in:     - [ ] Fix bug  2027-Q5
+kind:   task
+check:  open
+title:  Fix bug  2027-Q5
+suffix:
+# note: undesirable and inconsistent. 2027-Q5 does not match the date shape so it is never E-DATE, while 2027-13 is.
+
+in:     - [ ] Fix bug  2027-13
+kind:   task
+check:  open
+title:  Fix bug
+suffix: date=2027-13
+# note: E-DATE. Assumes an invalid shape-matching token is still a date token.
+
+in:     - [ ] 2026-10-31 Chemistry  2027-06-30
+kind:   milestone
+check:  open
+date:   2026-10-31
+title:  Chemistry
+suffix: date=2027-06-30
+# note: undesirable. Node.date holds one date; the second date has no defined place.
+
+in:     - [ ] 2027-02-30 Bad date
+kind:   milestone
+check:  open
+date:   2027-02-30
+title:  Bad date
+suffix:
+# note: E-DATE. Ambiguous: the grammar could instead treat this as a task titled "2027-02-30 Bad date".
+
+in:     - [ ] owner: @jan
+kind:   task
+check:  open
+title:  owner: @jan
+suffix:
+# note: undesirable. The key needs k of at least 1, so it stays in the title and the item has no owner.
+
+in:     - [ ] 2027-06-30 owner: @jan
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  owner: @jan
+suffix:
+# note: undesirable, same cause as the previous case.
+
+in:     - 1. [ ] Design 2w
+kind:   prose
+check:  none
+title:
+suffix:
+# note: undesirable. Ordered list markers are not list items, so the whole item is ignored.
+
+in:     - Owner: Priya Nair <priya.nair@example.com>
+kind:   property
+check:  none
+title:
+suffix: owner=Priya Nair <priya.nair@example.com>
+# note: valid only when the parent is a planning item, a heading or the project.
+
+in:     - Owner: @jan
+kind:   property
+check:  none
+title:
+suffix: owner=@jan
+
+in:     - after: ^chemistry
+kind:   property
+check:  none
+title:
+suffix: after=^chemistry
+
+in:     - Note: see below
+kind:   prose
+check:  none
+title:
+suffix:
+# note: "note" is not a known key, so this is prose.
+
+in:     - Owner: Jan Doe
+kind:   property
+check:  none
+title:
+suffix:
+# note: undefined. The value is not one value (no email, two words); the grammar has no fallback, so owner is unset.
+
+in:     - Owner: @jan  2w
+kind:   property
+check:  none
+title:
+suffix:
+# note: undefined. The value "@jan 2w" is not one value; property bullets have no suffix extraction.
+
+in:     - [ ] 2027-06-30 Owner: @jan
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  Owner: @jan
+suffix:
+# note: same cause as the leading-date no-title case.
