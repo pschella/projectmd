@@ -3,20 +3,17 @@
 - Owner: @jonas
 - Stakeholders: Priya Nair <priya.nair@example.com>
 - Commitment: 2027-06-30
-- State: in-development
-- ID: cars.example.com/platform/battery-pack/cell-module
 
 Mechanical and thermal module holding twelve cells and their busbars. Owned by the pack team.
 The cell supplier's gates are tracked in a sub-project one level further down.
 
 ## Milestones
 
-- [x] 2026-11-06 Module concept frozen  ^module-concept
-- [ ] 2027-02-26 Module design sign-off  #public  ^sign-off
-  - approver: @priya
+- [x] 2026-11-06 Module concept frozen  #private  ^module-concept
+- [ ] 2027-02-26 Module design sign-off  ^sign-off
   - Decision criteria: housing stiffness target met; busbar resistance within budget.
-- [ ] 2027-04-30 Module thermal release  ^thermal
-- [ ] 2027-06-30 Module production release  ^prod-release
+- [ ] 2027-04-30 Module thermal release  #private  ^thermal
+- [ ] 2027-06-30 Module production release  #private  ^prod-release
 
 ## Work
 
@@ -25,7 +22,8 @@ The cell supplier's gates are tracked in a sub-project one level further down.
 - [ ] Module housing design  6w  after: ^module-concept  owner: @jonas
 - [ ] Cell-to-module thermal test  4w  after: ^sign-off  ^thermal-test
 - [ ] [Supplier qualification](cell-module/supplier-qualification.md)  by: 2027-04-15
-- [ ] Production readiness review  1w  after: ^thermal-test  after: [Supplier qualified][sq-q]
+- [ ] [Supplier qualified][sq-q]  ^supplier-qualification-qualified
+- [ ] Production readiness review  1w  after: ^thermal-test  after: ^supplier-qualification-qualified
 
 ## Risks
 

@@ -4,36 +4,16 @@ use pmd_core::*;
 use serde_json::json;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
-use std::path::Path;
 use std::process::exit;
-use std::rc::Rc;
-use std::time::{Duration as StdDuration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Default)]
 struct Loader {
     graph: Option<Graph>,
-    profiles: HashMap<String, Option<Rc<Options>>>,
-    read: StdDuration,
-    parse: StdDuration,
-    files: usize,
-    bytes: usize,
-    lines: usize,
     unreadable: Vec<(String, String)>,
 }
 
 impl Loader {
-    fn options_for(&mut self, path: &str) -> Rc<Options> {
-        for cand in profile_candidates(path) {
-            let e = self.profiles.entry(cand.clone()).or_insert_with(|| {
-                fs::read_to_string(&cand).ok().map(|s| Rc::new(parse_profile(&s)))
-            });
-            if let Some(o) = e {
-                return o.clone();
-            }
-        }
-        Rc::new(Options::default())
-    }
-
     /// Load root and every file reachable through sub-project links (and existing local refs).
     fn load(root: &str) -> Loader {
         Loader::load_depth(root, usize::MAX)
@@ -48,11 +28,9 @@ impl Loader {
         q.push_back((root.clone(), true, 0));
         seen.insert(root);
         while let Some((path, required, depth)) = q.pop_front() {
-            let t = Instant::now();
             let bytes = match fs::read(&path) {
                 Ok(b) => b,
                 Err(e) => {
-                    ld.read += t.elapsed();
                     if required {
                         ld.unreadable.push((path, e.to_string()));
                     }
@@ -60,14 +38,7 @@ impl Loader {
                 }
             };
             let src = String::from_utf8_lossy(&bytes);
-            ld.read += t.elapsed();
-            let opts = ld.options_for(&path);
-            let t = Instant::now();
-            let proj = parse(&path, &src, &opts);
-            ld.parse += t.elapsed();
-            ld.files += 1;
-            ld.bytes += bytes.len();
-            ld.lines += src.bytes().filter(|b| *b == b'\n').count() + usize::from(!src.ends_with('\n') && !src.is_empty());
+            let proj = parse(&path, &src);
             for l in project_links(&proj) {
                 if depth >= max || l.remote || seen.contains(&l.path) {
                     continue;
@@ -75,7 +46,7 @@ impl Loader {
                 seen.insert(l.path.clone());
                 q.push_back((l.path, l.kind == LinkKind::Subproject, depth + 1));
             }
-            ld.graph.as_mut().unwrap().add_hashed(proj, hash_prefix(&bytes));
+            ld.graph.as_mut().unwrap().add(proj);
         }
         ld
     }
@@ -97,7 +68,7 @@ fn all_diags(g: &Graph) -> Vec<Diagnostic> {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: pmd parse FILE | check FILE [--deep] [--today D] [--json] | schedule FILE [--today D] [--json] | lock FILE [--if-hash HASH] | fmt FILE [--ids] [--check] [--if-hash HASH] | tree FILE [--depth N] | stats FILE"
+        "usage: pmd parse FILE | check FILE [--deep] [--strict] [--today D] [--json] | schedule FILE [--today D] [--json] | fmt FILE [--check] | tree FILE [--depth N]"
     );
     exit(2)
 }
@@ -116,7 +87,7 @@ fn main() {
     let (mut file, mut opts) = (None, Vec::new());
     let mut it = args[1..].iter();
     while let Some(a) = it.next() {
-        if matches!(a.as_str(), "--today" | "--depth" | "--if-hash") {
+        if matches!(a.as_str(), "--today" | "--depth") {
             opts.push(a.clone());
             opts.extend(it.next().cloned());
         } else if a.starts_with("--") || file.is_some() {
@@ -129,9 +100,8 @@ fn main() {
     let file = &file;
     match args[0].as_str() {
         "parse" => cmd_parse(file),
-        "check" => cmd_check(file, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep")),
+        "check" => cmd_check(file, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep"), has_flag(&opts, "--strict")),
         "schedule" => cmd_schedule(file, today_arg(&opts), has_flag(&opts, "--json")),
-        "lock" => cmd_lock(file, if_hash_arg(&opts)),
         "fmt" => cmd_fmt(file, &opts),
         "tree" => {
             let mut depth = 1usize;
@@ -146,7 +116,6 @@ fn main() {
             }
             cmd_tree(file, depth)
         }
-        "stats" => cmd_stats(file),
         _ => usage(),
     }
 }
@@ -163,38 +132,12 @@ fn read_or_die(path: &str) -> String {
 
 fn cmd_parse(file: &str) {
     let src = read_or_die(file);
-    let mut ld = Loader::default();
-    let opts = ld.options_for(&normalize(file));
-    let proj = parse(file, &src, &opts);
+    let proj = parse(file, &src);
     println!("{}", serde_json::to_string_pretty(&proj).unwrap());
 }
 
 fn has_flag(rest: &[String], flag: &str) -> bool {
     rest.iter().any(|a| a == flag)
-}
-
-/// Value of `--if-hash HASH` (exits with usage when the value is missing or empty).
-fn if_hash_arg(rest: &[String]) -> Option<String> {
-    let mut out = None;
-    let mut i = 0;
-    while i < rest.len() {
-        if rest[i] == "--if-hash" && i + 1 < rest.len() && !rest[i + 1].is_empty() {
-            out = Some(rest[i + 1].to_ascii_lowercase());
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
-/// Exit 3 unless the hash of `bytes` starts with `want` (a hash or a prefix of one).
-fn check_hash(path: &str, bytes: &[u8], want: &str) {
-    let have = hash_prefix(bytes);
-    if !have.starts_with(want) {
-        eprintln!("pmd: {} changed (hash {}), re-read", path, have);
-        exit(3)
-    }
 }
 
 fn today_arg(rest: &[String]) -> Civil {
@@ -204,10 +147,8 @@ fn today_arg(rest: &[String]) -> Civil {
         if rest[i] == "--today" && i + 1 < rest.len() {
             t = rest[i + 1].clone();
             i += 2;
-        } else if rest[i] == "--json" || rest[i] == "--deep" {
+        } else if matches!(rest[i].as_str(), "--json" | "--deep" | "--strict") {
             i += 1;
-        } else if rest[i] == "--if-hash" && i + 1 < rest.len() {
-            i += 2;
         } else {
             usage();
         }
@@ -221,77 +162,43 @@ fn today_arg(rest: &[String]) -> Civil {
     }
 }
 
-/// Key of a lock entry's location, as the scheduler looks it up (remote URLs stay as they are).
-fn iface_key(dir: &str, loc: &str) -> String {
-    if is_remote(loc) {
-        loc.to_string()
-    } else if dir.is_empty() {
-        normalize(loc)
-    } else {
-        normalize(&format!("{}/{}", dir, loc))
-    }
-}
-
-/// Declared dates of every project known: FILE's own lock entries (their `late` included),
-/// overridden by the loaded projects, which keep the `late` of their lock entry.
-fn interfaces_for(root: &str, g: &Graph) -> Interfaces {
+/// Declared dates of every project in the loaded graph (read live; nothing is stored).
+fn interfaces_for(g: &Graph) -> Interfaces {
     let mut ifs = Interfaces::new();
-    let own = own_lock(root);
-    if let Some((dir, lock)) = &own {
-        for e in &lock.entries {
-            ifs.insert(iface_key(dir, &e.location), Interface::from_lock_entry(e));
-        }
-    }
     for p in g.projects() {
-        let key = normalize(&p.path);
-        let mut i = Interface::from_project(p);
-        if let Some((dir, lock)) = &own {
-            if let Some(e) = lock.entries.iter().find(|e| iface_key(dir, &e.location) == key) {
-                i.late = Interface::from_lock_entry(e).late;
-            }
-        }
-        ifs.insert(key, i);
+        ifs.insert(normalize(&p.path), Interface::from_project(p));
     }
     ifs
+}
+
+/// What the graph knows about a link target: remote targets are not fetched (unknown), a local
+/// file that was read is `Read`, a local file that is absent is `E-REF-MISSING`'s business.
+fn lookup_in<'a>(g: &'a Graph) -> impl Fn(&str) -> Option<Child<'a>> + 'a {
+    move |t: &str| if is_remote(t) { Some(Child::Unknown) } else { g.get(t).map(Child::Read) }
+}
+
+fn sev_str(d: &Diagnostic) -> &'static str {
+    match d.severity {
+        Severity::E => "E",
+        Severity::W => "W",
+        Severity::I => "I",
+    }
 }
 
 fn diag_json(d: &Diagnostic) -> serde_json::Value {
     json!({
         "path": d.path,
         "line": d.line,
-        "severity": if d.is_error() { "E" } else { "W" },
+        "severity": sev_str(d),
         "code": d.code,
         "message": d.message,
         "fix": fix_hint(d.code),
     })
 }
 
-/// W-STALE-LOCK for each direct local link whose file differs from FILE's lock (or is missing
-/// from it). Only checked when FILE has a lock.
-fn stale_lock_diags(root: &str, g: &Graph) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
-    let (Some((dir, lock)), Some(p)) = (own_lock(root), g.get(&normalize(root))) else { return out };
-    let lockname = lock_path(root);
-    let lockname = Path::new(&lockname).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    let mut seen = HashSet::new();
-    for l in project_links(p) {
-        if l.remote || !seen.insert(l.path.clone()) {
-            continue;
-        }
-        let Some(h) = g.hash(&l.path) else { continue };
-        let e = lock.entries.iter().find(|e| iface_key(&dir, &e.location) == l.path);
-        if e.and_then(|e| e.field("hash")) != Some(h) {
-            let mut d = Diagnostic::new(Severity::W, "W-STALE-LOCK", l.line, format!("`{}` is out of date for `{}`", lockname, l.path));
-            d.path = p.path.clone();
-            out.push(d);
-        }
-    }
-    out
-}
-
-/// Default: FILE, its own lock and its direct links (one level, like `lock`). `--deep`: the
-/// whole graph reachable from FILE.
-fn cmd_check(root: &str, today: Civil, json: bool, deep: bool) {
+/// Default: FILE and its direct links, read live (one level). `--deep`: the
+/// whole graph reachable from FILE. `--strict`: warnings fail too (info never does).
+fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) {
     let ld = if deep { Loader::load(root) } else { Loader::load_depth(root, 1) };
     let g = ld.graph.as_ref().unwrap();
     let rootn = normalize(root);
@@ -299,9 +206,9 @@ fn cmd_check(root: &str, today: Civil, json: bool, deep: bool) {
     if !deep {
         diags.retain(|d| normalize(&d.path) == rootn);
     }
-    diags.extend(stale_lock_diags(root, g));
-    let ifs = interfaces_for(root, g);
+    let ifs = interfaces_for(g);
     for p in g.projects().iter().filter(|p| deep || normalize(&p.path) == rootn) {
+        diags.extend(contract_diags(p, &lookup_in(g)));
         let mut c = p.clone();
         let before = c.diagnostics.len();
         schedule(&mut c, today, &ifs);
@@ -312,7 +219,7 @@ fn cmd_check(root: &str, today: Civil, json: bool, deep: bool) {
         }
     }
     diags.sort_by(|a, b| (&a.path, a.line).cmp(&(&b.path, b.line)));
-    let failed = !ld.unreadable.is_empty() || diags.iter().any(|d| d.is_error());
+    let failed = !ld.unreadable.is_empty() || diags.iter().any(|d| d.is_error() || (strict && d.severity == Severity::W));
     if json {
         let mut list: Vec<serde_json::Value> = ld
             .unreadable
@@ -346,14 +253,14 @@ fn span(f: &Forecast) -> String {
 }
 
 fn cmd_schedule(root: &str, today: Civil, json: bool) {
-    let ld = Loader::load(root);
-    if !ld.unreadable.is_empty() {
+    let ld = Loader::load_depth(root, 1);
+    let g = ld.graph.as_ref().unwrap();
+    let Some(p0) = g.get(root) else {
         eprintln!("pmd: cannot read {}", root);
         exit(2);
-    }
-    let g = ld.graph.as_ref().unwrap();
-    let ifs = interfaces_for(root, g);
-    let mut p = g.get(root).unwrap().clone();
+    };
+    let ifs = interfaces_for(g);
+    let mut p = p0.clone();
     schedule(&mut p, today, &ifs);
     if json {
         // The same Project JSON as `pmd parse`, with the forecasts the scheduler filled in.
@@ -377,73 +284,18 @@ fn cmd_schedule(root: &str, today: Civil, json: bool) {
         }
     }
     walk(&p.nodes, 1);
-    for d in p.diagnostics.iter().filter(|d| matches!(d.code, "E-CONFLICT" | "E-BOUND" | "E-CYCLE")) {
+    for d in p.diagnostics.iter().filter(|d| matches!(d.code, "E-CONFLICT" | "E-CYCLE")) {
         println!("{}:{}: {} {}", p.path, d.line, d.code, d.message);
     }
 }
 
-/// Path of the lock of a project file: `NAME.md` -> `NAME.lock`.
-fn lock_path(md: &str) -> String {
-    Path::new(md).with_extension("lock").to_string_lossy().into_owned()
-}
-
-/// Build and write FILE's lock (`NAME.lock` beside it). Reads FILE, each direct local link and
-/// that link's own lock; nothing deeper.
-fn cmd_lock(file: &str, if_hash: Option<String>) {
-    let path = normalize(file);
-    let bytes = match fs::read(&path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("pmd: cannot read {}: {}", file, e);
-            exit(2)
-        }
-    };
-    let mut ld = Loader { graph: Some(Graph::new(&path)), ..Default::default() };
-    let opts = ld.options_for(&path);
-    let proj = parse(&path, &String::from_utf8_lossy(&bytes), &opts);
-    let mut direct: Vec<String> = project_links(&proj).into_iter().filter(|l| !l.remote).map(|l| l.path).collect();
-    direct.sort();
-    direct.dedup();
-    ld.graph.as_mut().unwrap().add_hashed(proj, hash_prefix(&bytes));
-
-    let mut child_locks: HashMap<String, Lock> = HashMap::new();
-    for t in direct.iter().filter(|t| **t != path) {
-        match fs::read(t) {
-            Ok(b) => {
-                let opts = ld.options_for(t);
-                let child = parse(t, &String::from_utf8_lossy(&b), &opts);
-                ld.graph.as_mut().unwrap().add_hashed(child, hash_prefix(&b));
-            }
-            Err(e) => eprintln!("pmd: warning: cannot read {} ({}); keeping its previous entry", t, e),
-        }
-        if let Ok(s) = fs::read_to_string(lock_path(t)) {
-            child_locks.insert(t.clone(), Lock::parse(&s));
-        }
-    }
-
-    let out = lock_path(&path);
-    let prev = fs::read_to_string(&out).ok().map(|s| Lock::parse(&s));
-    let lock = build_lock(&path, ld.graph.as_ref().unwrap(), &child_locks, prev.as_ref(), today_arg(&[]));
-    if let Some(h) = &if_hash {
-        // The lock being overwritten is the version this write is based on (missing = empty).
-        check_hash(&out, &fs::read(&out).unwrap_or_default(), h);
-    }
-    if let Err(e) = fs::write(&out, lock.to_string()) {
-        eprintln!("pmd: {}: {}", out, e);
-        exit(2);
-    }
-    println!("wrote {} ({} entries)", out, lock.entries.len());
-}
-
-/// `pmd fmt FILE [--ids] [--check] [--if-hash HASH]`: rewrite FILE in canonical form (FORMAT §14).
+/// `pmd fmt FILE [--check]`: rewrite FILE in canonical form (FORMAT §13).
 fn cmd_fmt(file: &str, rest: &[String]) {
-    let (mut ids, mut check) = (false, false);
+    let mut check = false;
     let mut i = 0;
     while i < rest.len() {
         match rest[i].as_str() {
-            "--ids" => ids = true,
             "--check" => check = true,
-            "--if-hash" if i + 1 < rest.len() => i += 1,
             _ => usage(),
         }
         i += 1;
@@ -456,18 +308,13 @@ fn cmd_fmt(file: &str, rest: &[String]) {
         }
     };
     let src = String::from_utf8_lossy(&bytes).into_owned();
-    let mut ld = Loader::default();
-    let opts = ld.options_for(&normalize(file));
-    let out = fmt::format_with(&src, ids, &opts);
+    let out = fmt::format(&src);
     if check {
         if out != src {
             println!("{}", file);
             exit(1);
         }
         return;
-    }
-    if let Some(h) = if_hash_arg(rest) {
-        check_hash(file, &bytes, &h);
     }
     if out != src {
         if let Err(e) = fs::write(file, out) {
@@ -477,55 +324,68 @@ fn cmd_fmt(file: &str, rest: &[String]) {
     }
 }
 
-/// FILE's own lock (`NAME.lock` beside FILE) with the folder its locations are relative to.
-fn own_lock(file: &str) -> Option<(String, Lock)> {
-    let n = normalize(file);
-    let dir = match n.rfind('/') {
-        Some(0) => "/".to_string(),
-        Some(i) => n[..i].to_string(),
-        None => String::new(),
-    };
-    let s = fs::read_to_string(lock_path(&n)).ok()?;
-    Some((dir, Lock::parse(&s)))
-}
-
 struct TreeCtx {
-    lock: Option<(String, Lock)>,
-    ld: Loader,
+    /// Direct links read once, live (`None`: not readable here).
+    kids: HashMap<String, Option<Project>>,
 }
 
 fn cmd_tree(root: &str, depth: usize) {
-    let mut ctx = TreeCtx { lock: own_lock(root), ld: Loader::default() };
+    let mut ctx = TreeCtx { kids: HashMap::new() };
     let path = normalize(root);
     let src = read_or_die(&path);
-    let opts = ctx.ld.options_for(&path);
-    let proj = parse(&path, &src, &opts);
+    let proj = parse(&path, &src);
     tree_project(&mut ctx, &proj, depth, 0, &mut vec![path.clone()]);
 }
 
-fn lock_summary(ctx: &TreeCtx, path: &str) -> String {
-    if let Some((dir, lock)) = &ctx.lock {
-        let rel = if dir.is_empty() { path } else { path.strip_prefix(&format!("{}/", dir)).unwrap_or(path) };
-        if let Some(e) = lock.entry(rel) {
-            let mut s = String::new();
-            if let Some(c) = e.field("commitment") {
-                s.push_str(&format!(" commitment={}", c));
-            }
-            s.push_str(&format!(" public={}", e.milestones.len()));
-            return s;
-        }
+fn read_child(ctx: &mut TreeCtx, target: &str) {
+    if ctx.kids.contains_key(target) {
+        return;
     }
-    String::new()
+    let child = if is_remote(target) {
+        None
+    } else {
+        fs::read(target).ok().map(|b| {
+            parse(target, &String::from_utf8_lossy(&b))
+        })
+    };
+    ctx.kids.insert(target.to_string(), child);
 }
 
 fn tree_project(ctx: &mut TreeCtx, p: &Project, depth: usize, level: usize, stack: &mut Vec<String>) {
     let ind = "  ".repeat(level);
     let c = p.commitment.as_ref().map(|c| format!("  commitment={}", c.text)).unwrap_or_default();
     println!("{}{}{}  ({})", ind, p.title, c, p.path);
-    tree_nodes(ctx, p, &p.nodes, depth, level + 1, stack);
+    let mut targets = Vec::new();
+    p.walk(|n| {
+        if let (true, Some(l)) = (n.is_link_node(), &n.link) {
+            targets.push(resolve(&p.path, &l.target));
+        }
+    });
+    for t in &targets {
+        read_child(ctx, t);
+    }
+    let states: HashMap<u32, State> = {
+        let kids = &ctx.kids;
+        let lookup = |t: &str| -> Option<Child<'_>> { if is_remote(t) { Some(Child::Unknown) } else { kids.get(t).and_then(|k| k.as_ref()).map(Child::Read) } };
+        contracts_of(p, &lookup).into_iter().map(|c| (c.line, c.state)).collect()
+    };
+    tree_nodes(ctx, p, &p.nodes, &states, depth, level + 1, stack);
 }
 
-fn tree_nodes(ctx: &mut TreeCtx, p: &Project, nodes: &[Node], depth: usize, level: usize, stack: &mut Vec<String>) {
+fn contract_summary(ctx: &TreeCtx, states: &HashMap<u32, State>, n: &Node, target: &str) -> String {
+    let mut s = String::new();
+    if let Some(Some(c)) = ctx.kids.get(target) {
+        if let Some(cm) = &c.commitment {
+            s.push_str(&format!(" commitment={}", cm.text));
+        }
+    }
+    if let Some(st) = states.get(&n.line) {
+        s.push_str(&format!(" {}", st.as_str()));
+    }
+    s
+}
+
+fn tree_nodes(ctx: &mut TreeCtx, p: &Project, nodes: &[Node], states: &HashMap<u32, State>, depth: usize, level: usize, stack: &mut Vec<String>) {
     let ind = "  ".repeat(level);
     for n in nodes {
         let mut extra = String::new();
@@ -549,16 +409,17 @@ fn tree_nodes(ctx: &mut TreeCtx, p: &Project, nodes: &[Node], depth: usize, leve
                 };
                 println!("{}{} {}{}", ind, m, n.title, extra)
             }
+            NodeKind::Deliverable => {
+                let link = n.link.as_ref().unwrap();
+                let target = resolve(&p.path, &link.target);
+                println!("{}<> {}{}  -> {}{}", ind, link.text, extra, link.target, contract_summary(ctx, states, n, &target));
+            }
             NodeKind::Subproject => {
                 let link = n.link.as_ref().unwrap();
                 let target = resolve(&p.path, &link.target);
-                let remote = is_remote(&target);
-                println!("{}=> {}{}  -> {}{}", ind, link.text, extra, link.target, lock_summary(ctx, &target));
-                if depth > 1 && !remote && !stack.contains(&target) {
-                    if let Ok(b) = fs::read(&target) {
-                        let src = String::from_utf8_lossy(&b);
-                        let opts = ctx.ld.options_for(&target);
-                        let child = parse(&target, &src, &opts);
+                println!("{}=> {}{}  -> {}{}", ind, link.text, extra, link.target, contract_summary(ctx, states, n, &target));
+                if depth > 1 && !is_remote(&target) && !stack.contains(&target) {
+                    if let Some(Some(child)) = ctx.kids.get(&target).cloned() {
                         stack.push(target.clone());
                         tree_project(ctx, &child, depth - 1, level + 1, stack);
                         stack.pop();
@@ -566,46 +427,6 @@ fn tree_nodes(ctx: &mut TreeCtx, p: &Project, nodes: &[Node], depth: usize, leve
                 }
             }
         }
-        tree_nodes(ctx, p, &n.children, depth, level + 1, stack);
-    }
-}
-
-#[cfg(unix)]
-fn peak_rss_kb() -> Option<u64> {
-    extern "C" {
-        fn getrusage(who: i32, usage: *mut [i64; 18]) -> i32;
-    }
-    let mut u = [0i64; 18];
-    // SAFETY: rusage is 2 timevals + 14 longs on 64-bit unix; the buffer is large enough.
-    let r = unsafe { getrusage(0, &mut u) };
-    if r != 0 {
-        return None;
-    }
-    let v = u[4].max(0) as u64;
-    Some(if cfg!(target_os = "macos") { v / 1024 } else { v })
-}
-#[cfg(not(unix))]
-fn peak_rss_kb() -> Option<u64> {
-    None
-}
-
-fn cmd_stats(root: &str) {
-    let ld = Loader::load(root);
-    let g = ld.graph.as_ref().unwrap();
-    let t = Instant::now();
-    let check = g.check();
-    let check_t = t.elapsed();
-    let nodes: usize = g.projects().iter().map(|p| p.count_nodes()).sum();
-    let pd: usize = g.projects().iter().map(|p| p.diagnostics.len()).sum();
-    println!("files:       {}", ld.files);
-    println!("lines:       {}", ld.lines);
-    println!("bytes:       {}", ld.bytes);
-    println!("nodes:       {}", nodes);
-    println!("diagnostics: {} ({} parse, {} graph)", pd + check.len(), pd, check.len());
-    println!("read:        {:?}", ld.read);
-    println!("parse:       {:?}", ld.parse);
-    println!("check:       {:?}", check_t);
-    if let Some(k) = peak_rss_kb() {
-        println!("peak rss:    {} KiB", k);
+        tree_nodes(ctx, p, &n.children, states, depth, level + 1, stack);
     }
 }

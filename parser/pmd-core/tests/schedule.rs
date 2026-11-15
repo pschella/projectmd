@@ -1,7 +1,7 @@
 use pmd_core::*;
 
 fn run(src: &str, today: &str, ifs: &[(&str, Interface)]) -> Project {
-    let mut p = parse("dir/a.md", src, &Options::default());
+    let mut p = parse("dir/a.md", src);
     let t = match parse_date(today) {
         DateParse::Ok(c, _) => c,
         _ => panic!(),
@@ -22,10 +22,10 @@ fn fc(p: &Project, title: &str) -> (String, String, bool) {
     r.unwrap_or_else(|| panic!("no node {}", title))
 }
 fn codes(p: &Project) -> Vec<&'static str> {
-    p.diagnostics.iter().map(|d| d.code).filter(|c| c.starts_with("E-C") || *c == "E-BOUND").collect()
+    p.diagnostics.iter().map(|d| d.code).filter(|c| c.starts_with("E-C")).collect()
 }
 fn iface(c: &str, ms: &[(&str, &str)]) -> Interface {
-    Interface::from_texts(Some(c), None, ms.iter().copied())
+    Interface::from_texts(Some(c), ms.iter().copied())
 }
 
 #[test]
@@ -52,13 +52,25 @@ fn after_chain_and_unfinished_task_without_info() {
 }
 
 #[test]
-fn cross_file_after_uses_interface() {
-    let src = "# T\n\n- [ ] X  2w  after: [p](b.md#ready)\n- [ ] Y  1w  after: [q](b.md)\n- [ ] Z  1w  after: [q](unknown.md#a)\n";
+fn deliverable_dates_come_from_the_interface_and_local_after_follows() {
+    let src = "# T\n\n- [ ] [Ready](b.md#ready)  by: 2027-07-31  ^ready\n- [ ] X  2w  after: ^ready\n";
     let b = iface("2027-12-31", &[("ready", "2027-06-30")]);
     let p = run(src, "2027-01-01", &[("dir/b.md", b)]);
     assert_eq!(fc(&p, "X"), ("2027-07-01".into(), "2027-07-14".into(), false));
-    assert_eq!(fc(&p, "Y"), ("2028-01-01".into(), "2028-01-07".into(), false));
-    assert_eq!(fc(&p, "Z").0, "2027-01-01"); // unknown target ignored
+}
+
+#[test]
+fn cross_file_after_is_not_a_key() {
+    let p = parse("a.md", "# T\n\n- [ ] X  2w  after: [p](b.md#ready)\n- [ ] Y  1w  after: b.md\n");
+    assert!(p.nodes[0].keys.get("after").is_none());
+    assert_eq!(p.diagnostics.iter().filter(|d| d.code == "W-KEYLIKE").count(), 2, "{:?}", p.diagnostics);
+}
+
+#[test]
+fn milestone_may_fall_on_its_predecessors_end_day() {
+    let p = run("# T\n\n- [ ] A  2w  ^a\n- [ ] 2027-01-14 M  after: ^a\n- [ ] 2027-01-13 L  after: ^a\n", "2027-01-01", &[]);
+    assert_eq!(fc(&p, "M"), ("2027-01-14".into(), "2027-01-14".into(), false));
+    assert_eq!(fc(&p, "L"), ("2027-01-14".into(), "2027-01-14".into(), true));
 }
 
 #[test]
@@ -66,7 +78,7 @@ fn subproject_interface_vs_own_by() {
     let src = "# T\n\n- [ ] [S](s.md)  by: 2027-06-30\n- [ ] [U](u.md)  by: 2027-08-31\n";
     let s = iface("2027-05-31", &[]);
     let p = run(src, "2027-01-01", &[("dir/s.md", s)]);
-    assert_eq!(fc(&p, "S"), ("null".into(), "2027-05-31".into(), false));
+    assert_eq!(fc(&p, "S"), ("2027-05-31".into(), "2027-05-31".into(), false));
     assert_eq!(fc(&p, "U"), ("null".into(), "2027-08-31".into(), false));
     let mut n = None;
     p.walk(|x| if x.link.as_ref().map_or(false, |l| l.text == "S") { n = Some(x.link_resolved.clone()) });
@@ -76,8 +88,9 @@ fn subproject_interface_vs_own_by() {
 #[test]
 fn bound_conflict_on_subproject() {
     let p = run("# T\n\n- [ ] [S](s.md)  by: 2027-06-30\n", "2027-01-01", &[("dir/s.md", iface("2027-07-31", &[]))]);
-    assert_eq!(codes(&p), vec!["E-BOUND"]);
-    assert!(fc(&p, "S").2);
+    // a promise later than `by:` is a negotiation (W-DISPUTED from the contracts), not a conflict
+    assert!(codes(&p).is_empty(), "{:?}", codes(&p));
+    assert!(!fc(&p, "S").2);
 }
 
 #[test]
@@ -140,13 +153,13 @@ fn absolute_url_paths_keep_leading_slash() {
     assert_eq!(resolve("https://h.example/p/q.md", "../r.md#id"), "https://h.example/r.md");
     assert_eq!(resolve("https://h.example/p/q.md", "/r.md"), "https://h.example/r.md");
     assert_eq!(resolve("https://h.example/p/q.md", "https://o.example/z.md"), "https://o.example/z.md");
-    let mut p = parse("/examples/car/aurora.md", "# T\n\n- [ ] [S](sub/s.md)  by: 2027-06-30\n- [ ] X  1w  after: [d](sub/s.md#m)\n", &Options::default());
+    let mut p = parse("/examples/car/aurora.md", "# T\n\n- [ ] [S](sub/s.md)  by: 2027-06-30\n- [ ] [D](sub/s.md#m)  by: 2027-06-30  ^d\n- [ ] X  1w  after: ^d\n");
     let mut i = Interfaces::new();
-    i.insert("/examples/car/sub/s.md".into(), Interface::from_texts(Some("2027-05-31"), None, [("m", "2027-04-01")]));
+    i.insert("/examples/car/sub/s.md".into(), Interface::from_texts(Some("2027-05-31"), [("m", "2027-04-01")]));
     schedule(&mut p, Civil::new(2027, 1, 1), &i);
     assert_eq!(p.nodes[0].link_resolved.as_deref(), Some("/examples/car/sub/s.md"));
     assert_eq!(p.nodes[0].forecast.unwrap().end, Some(Civil::new(2027, 5, 31)));
-    assert_eq!(p.nodes[1].forecast.unwrap().start, Some(Civil::new(2027, 4, 2)));
+    assert_eq!(p.nodes[2].forecast.unwrap().start, Some(Civil::new(2027, 4, 2)));
 }
 
 #[test]
@@ -182,21 +195,14 @@ fn coarse_estimates_are_checked_against_bounds() {
 }
 
 #[test]
-fn subproject_start_from_interface() {
-    let src = "# T\n\n- [ ] [S](s.md)  by: 2027-06-30\n";
-    let mut s = iface("2027-05-31", &[]);
-    s.start = Some(Civil::new(2027, 2, 1));
-    let p = run(src, "2027-01-01", &[("dir/s.md", s)]);
-    assert_eq!(fc(&p, "S"), ("2027-02-01".into(), "2027-05-31".into(), false));
-    assert_eq!(p.nodes[0].title, "S");
-}
-
-#[test]
-fn project_start_and_lock_field() {
-    let a = parse("a.md", "# T\n\n- Commitment: 2027-Q3\n\n- [ ] 2027-02-01 M\n- [ ] X  2027-01-10 .. 2027-03-01\n", &Options::default());
-    assert_eq!(Interface::from_project(&a).start, Some(Civil::new(2027, 1, 10)));
-    let b = parse("b.md", "# T\n\n- Commitment: 2026-09-01..2027-11-30\n\n- [ ] 2026-01-01 M\n", &Options::default());
-    assert_eq!(Interface::from_project(&b).start, Some(Civil::new(2026, 9, 1)));
-    let l = Lock::parse("a.md  id=x  commitment=2027-Q3  start=2027-01-10  seen=2026-11-14\n");
-    assert_eq!(Interface::from_lock_entry(&l.entries[0]).start, Some(Civil::new(2027, 1, 10)));
+fn promotion_schedules_from_the_estimate_until_the_child_promises() {
+    let src = "# T\n\n- [ ] 2027-01-10 Gate  ^g\n- [ ] [S](s.md)  6w  after: ^g  ^s\n- [ ] Next  1w  after: ^s\n";
+    // no Commitment in the child: the line's own estimate
+    let p = run(src, "2027-01-01", &[("dir/s.md", Interface::default())]);
+    assert_eq!(fc(&p, "S"), ("2027-01-11".into(), "2027-02-21".into(), false));
+    assert_eq!(fc(&p, "Next").0, "2027-02-22");
+    // once the child promises, the promise is the end
+    let p = run(src, "2027-01-01", &[("dir/s.md", iface("2027-03-31", &[]))]);
+    assert_eq!(fc(&p, "S").1, "2027-03-31");
+    assert_eq!(fc(&p, "Next").0, "2027-04-01");
 }

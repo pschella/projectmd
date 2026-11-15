@@ -1,5 +1,5 @@
 // projectmd Gantt viewer: view-only. See README.md.
-import { loadPmd, parseProject, parseLock } from './pmd.js';
+import { loadPmd, parseProject } from './pmd.js';
 import { renderMarkdown } from './md.js';
 
 const RH = 28;            // row height (px), must match --rh
@@ -55,13 +55,11 @@ function urlParam(k) { return encodeURIComponent(k).replace(/%2F/g, '/').replace
 
 // ---------- state ----------
 const S = {
-  rootKey: null, crumbs: [], profile: null,
-  lock: new Map(),          // key -> entry of the opened file's NAME.lock (hoisted)
-  lockKey: null, lockOk: false,
+  rootKey: null, crumbs: [],
+  peek: new Map(),               // key -> parsed direct link read live (null: unreadable)
   linkItem: new Map(),      // target key -> first sub-project item linking it
   idItem: new Map(),        // 'file#id' -> item
   rowById: new Map(), hover: -1, detailOpen: false,
-  metaDirs: new Set(),
   projects: new Map(),      // key -> {key,status,proj,root,err}
   collapsed: new Set(),     // item ids (headings/projects/tasks) the user collapsed
   expanded: new Set(),      // subproject item ids that are expanded
@@ -79,55 +77,26 @@ async function fetchText(key) {
   return r.text();
 }
 
-// Profile: .pmd/profile.md in the file's folder or a parent (first found wins).
-async function loadMeta(fileKey) {
-  const u = new URL(urlOf(fileKey));
-  const parts = u.pathname.split('/'); parts.pop();
-  const jobs = [];
-  for (;;) {
-    const dirKey = keyOf(new URL(parts.join('/') + '/', u).href);
-    if (!S.metaDirs.has(dirKey)) {
-      S.metaDirs.add(dirKey);
-      if (!S.profile) jobs.push(fetchText(dirKey + '.pmd/profile.md').then((t) => { if (!S.profile) S.profile = t; }).catch(() => {}));
-    }
-    if (parts.length <= 1) break;
-    parts.pop();
-  }
-  await Promise.all(jobs);
+// Direct links are read live (one hop). A link that cannot be read is unknown (null).
+async function peekLink(key) {
+  if (S.peek.has(key) || S.projects.has(key)) return;
+  S.peek.set(key, null);
+  try { const p = parseProject({ path: key, src: await fetchText(key), today: TODAY_ISO, interfaces: {} }); if (!p.error) S.peek.set(key, p); } catch (e) { /* unknown */ }
 }
+const linkTargets = (proj) => { const out = new Set(); (function w(ns) { for (const n of ns) { if (n.link_resolved && (n.kind === 'subproject' || n.kind === 'deliverable')) out.add(keyOf(urlOf(n.link_resolved.split('#')[0]))); w(n.children || []); } })(proj.nodes || []); return out; };
+const known = (key) => { const en = S.projects.get(key); return en && en.status === 'ok' ? en.proj : S.peek.get(key) || null; };
 
-// Lock: only the opened file's own NAME.lock (hoisted: lists every reachable project);
-// locations are relative to that file's folder. Missing lock is fine.
-const lockKeyOf = (key) => {
-  const u = new URL(urlOf(key));
-  u.pathname = /\.md$/i.test(u.pathname) ? u.pathname.replace(/\.md$/i, '.lock') : u.pathname + '.lock';
-  return keyOf(u.href);
-};
-async function loadLock(fileKey) {
-  S.lock = new Map(); S.lockOk = false; S.lockKey = lockKeyOf(fileKey);
-  try {
-    const res = parseLock(await fetchText(S.lockKey));
-    for (const e of res.entries || []) S.lock.set(resolveKey(S.lockKey, e.location), e);
-    S.lockOk = true;
-  } catch (e) { /* no lock: the viewer works without */ }
-}
+// Interface membership (D47): milestones unless #private.
+const inIface = (n) => !(n.tags || []).includes('private') && n.kind === 'milestone';
 
 function buildInterfaces() {
   const out = {};
-  for (const [k, e] of S.lock) {
+  for (const k of new Set([...S.projects.keys(), ...S.peek.keys()])) {
+    const p = known(k);
+    if (!p) continue;
     const i = { milestones: {} };
-    const c = dateText(e.commitment); if (c) i.commitment = c;
-    if (e.start) i.start = e.start;
-    if (e.late) i.late = e.late;
-    for (const [m, v] of Object.entries(e.milestones || {})) { const t = dateText(v); if (t) i.milestones[m] = t; }
-    out[k] = i;
-  }
-  for (const [k, en] of S.projects) {
-    if (en.status !== 'ok') continue;
-    const i = { milestones: {} };
-    const lk = S.lock.get(k); if (lk && lk.start) i.start = lk.start; if (lk && lk.late) i.late = lk.late;
-    if (en.proj.commitment && en.proj.commitment.text) i.commitment = en.proj.commitment.text;
-    (function w(ns) { for (const n of ns) { if (n.id && (n.tags || []).includes('public') && n.date && n.date.text) i.milestones[n.id] = n.date.text; w(n.children || []); } })(en.proj.nodes || []);
+    if (p.commitment && p.commitment.text) i.commitment = p.commitment.text;
+    (function w(ns) { for (const n of ns) { if (n.id && inIface(n) && n.checkbox !== 'cancelled' && n.date && n.date.text) i.milestones[n.id] = n.date.text; w(n.children || []); } })(p.nodes || []);
     out[k] = i;
   }
   return out;
@@ -136,6 +105,7 @@ function buildInterfaces() {
 function mkItems(nodes, entry, parent) {
   return nodes.map((node, i) => {
     const it = { id: `${entry.key}:${node.line}:${i}`, node, entry, parent, kind: node.kind, children: [] };
+    if (node.kind === 'deliverable') it.target = null;
     if (node.kind === 'subproject') {
       const t = node.link_resolved || (node.link && resolveKey(entry.key, node.link.target)) || null;
       it.target = t ? keyOf(urlOf(t.split('#')[0])) : null;
@@ -155,11 +125,12 @@ function loadProject(key) {
   en.promise = (async () => {
     try {
       const src = await fetchText(key);
-      await loadMeta(key);
       const req = { path: key, src, today: TODAY_ISO, interfaces: buildInterfaces() };
-      if (S.profile) req.profile = S.profile;
-      const proj = parseProject(req);
+      let proj = parseProject(req);
       if (proj.error) throw new Error(proj.error);
+      await Promise.all([...linkTargets(proj)].map(peekLink));
+      req.interfaces = buildInterfaces();
+      proj = parseProject(req);
       en.proj = proj;
       en.root = { id: `${key}:root`, kind: 'project', node: null, entry: en, parent: null, children: [] };
       en.root.children = mkItems(proj.nodes || [], en, en.root);
@@ -178,13 +149,8 @@ const union = (a, b) => (!a ? b : !b ? a : { s: Math.min(a.s, b.s), e: Math.max(
 const nodeOf = (it) => it.node;
 
 function commitOf(key) {
-  const en = S.projects.get(key);
-  if (en && en.status === 'ok' && en.proj.commitment) return exprSpan(en.proj.commitment);
-  const l = S.lock.get(key);
-  if (!l) return null;
-  const c = exprSpan(l.commitment); const st = toDay(l.start);
-  if (c && st != null && st < c.s) return { ...c, s: st };
-  return c;
+  const p = known(key);
+  return p && p.commitment ? exprSpan(p.commitment) : null;
 }
 
 function ownSpan(it) {
@@ -196,7 +162,7 @@ function ownSpan(it) {
     const r = n.range && exprSpan(n.range), d = n.date && exprSpan(n.date);
     if (r) { s = r.s; e = r.e; } else if (d) { e = d.e; s = n.kind === 'milestone' ? e : d.s; }
   }
-  if (n.kind === 'milestone') { const x = e ?? s; return x == null ? null : { s: x, e: x }; }
+  if (n.kind === 'milestone' || n.kind === 'deliverable') { const x = e ?? s; return x == null ? null : { s: x, e: x }; }
   if (s == null && e == null) return null;
   if (s == null) s = dur ? e - dur + 1 : e;
   if (e == null) e = dur ? s + dur - 1 : s;
@@ -254,7 +220,7 @@ function flatten() {
       else if (vc) sub = walk(vc, depth + 1, num);
       let span = null;
       if (it.kind === 'heading') { row.vk = 'sum'; span = sub || own; }
-      else if (it.kind === 'milestone') { row.vk = 'ms'; span = own; }
+      else if (it.kind === 'milestone' || it.kind === 'deliverable') { row.vk = 'ms'; span = own; }
       else if (it.kind === 'subproject') {
         const en = it.target && S.projects.get(it.target);
         row.sub = en || null;
@@ -271,11 +237,6 @@ function flatten() {
           const e = toDay(f.end) ?? (c && c.e) ?? row.by ?? (own && own.e);
           let s = toDay(f.start) ?? (c && c.range ? c.s : null) ?? (own && own.s);
           if (e != null) { if (s == null || s > e) { s = e - 45; row.openStart = true; } span = { s, e }; }
-          const l = it.target && S.lock.get(it.target);
-          if (l && !(en && en.status === 'ok')) {
-            row.ifaceMs = [];
-            for (const [mid, v] of Object.entries(l.milestones || {})) { const sp = exprSpan(v); if (sp) row.ifaceMs.push({ id: mid, d: sp.e }); }
-          }
         }
       } else { // task
         if (!own && sub) { row.vk = 'sum'; span = sub; }
@@ -380,10 +341,18 @@ function ownerText(row) {
   if (row.sub && row.sub.status === 'ok' && row.sub.proj.owner) { const p = row.sub.proj.owner; return p.name || p.text; }
   return '';
 }
+// A deliverable is labelled "project › milestone": the target's title when loaded, else its file name.
+function delivLabel(it) {
+  const n = it.node, t = n.link_resolved ? keyOf(urlOf(n.link_resolved.split('#')[0])) : null;
+  const en = t && S.projects.get(t);
+  const proj = en && en.status === 'ok' && en.proj.title ? en.proj.title : t ? baseName(t).replace(/\.md$/i, '') : '';
+  return proj ? `${proj} › ${n.link ? n.link.text : n.title}` : n.title;
+}
 function titleOf(it) {
   if (it.kind === 'project') return it.entry.proj.title;
   const n = it.node;
   if (n.kind === 'subproject' && n.link && n.link.text) return n.link.text;
+  if (n.kind === 'deliverable') return delivLabel(it);
   return n.title;
 }
 function durText(row) {
@@ -423,7 +392,7 @@ function tipText(row) {
   lines.push(`${row.vk === 'ms' ? 'milestone' : n ? n.kind : 'project'}${st ? ' · ' + st : ''}`);
   if (row.s != null) lines.push(row.vk === 'ms' ? fmt(row.e) : `${fmt(row.s)} → ${fmt(row.e)} (${durText(row)})${row.fc ? ' forecast' : ''}`);
   if (n && row.decl) lines.push(`Declared ${declText(n)}`);
-  if (row.vk === 'sub') lines.push(row.commit ? `Commitment ${row.commit.text} (${S.projects.get(it.target) && S.projects.get(it.target).status === 'ok' ? 'file' : 'lock'})` : 'No interface known');
+  if (row.vk === 'sub') lines.push(row.commit ? `Commitment ${row.commit.text} (live)` : 'No interface known');
   if (row.vk === 'unk') lines.push('Could not load');
   for (const r of reasonsOf(row)) lines.push('! ' + r);
   return lines.join('\n');
@@ -481,9 +450,9 @@ function render() {
     }
     let ico = '';
     if (it.kind === 'heading') ico = '<span class="st hd"></span>';
-    else if (it.kind === 'milestone') ico = `<span class="st diamond ${stCls(it)}"></span>`;
+    else if (it.kind === 'milestone' || it.kind === 'deliverable') ico = `<span class="st diamond ${stCls(it)}"></span>`;
     else if (row.failed) ico = `<span class="st sub warnic" title="${esc(row.sub.err)}"></span>`;
-    else if (it.kind === 'subproject') ico = `<span class="st sub ${row.sub && row.sub.status === 'ok' ? 'loaded ' : ''}${stCls(it)}" title="${row.sub && row.sub.status === 'ok' ? 'Loaded sub-project' : 'Not loaded: interface from the lock'}"></span>`;
+    else if (it.kind === 'subproject') ico = `<span class="st sub ${row.sub && row.sub.status === 'ok' ? 'loaded ' : ''}${stCls(it)}" title="${row.sub && row.sub.status === 'ok' ? 'Loaded sub-project' : 'Not expanded: promise read live'}"></span>`;
     else if (it.kind === 'task') ico = `<span class="st ${stCls(it)}"></span>`;
     const why = reasonsOf(row);
     const flag = why.length ? `<span class="flag" title="${esc(why.join('\n'))}">!</span>` : '';
@@ -521,7 +490,6 @@ function bars(row) {
       break;
     case 'sub':
       out = `<div class="sub ${sc}${mism}${row.openStart ? ' openstart' : ''}" style="left:${x1}px;width:${w}px"${tip}>&#8615;</div>`;
-      for (const m of row.ifaceMs || []) out += `<div class="ms mini" style="left:${dx(m.d + 0.5)}px" data-tip="${esc(m.id)}: ${fmt(m.d)} (lock)"></div>`;
       break;
     case 'unk':
       out = `<div class="unk" style="left:${x1}px;width:${w}px"${tip}></div>`;
@@ -563,8 +531,7 @@ function updateToolbar() {
     document.title = `${p.title} – projectmd`;
     els.ptitle.textContent = p.title;
     const chip = (k, v) => (v ? `<span class="chip">${k} <b>${esc(v)}</b></span>` : '');
-    els.pmeta.innerHTML = chip('Owner', p.owner && (p.owner.name || p.owner.text)) + chip('State', p.state) + chip('Commitment', p.commitment && p.commitment.text) +
-      `<span class="chip" title="${esc(S.lockKey)}">${S.lockOk ? 'lock <b>' + esc(baseName(S.lockKey)) + '</b>' : 'no lock'}</span>`;
+    els.pmeta.innerHTML = chip('Owner', p.owner && (p.owner.name || p.owner.text)) + chip('Commitment', p.commitment && p.commitment.text);
   }
   let c = '';
   S.crumbs.forEach((k, i) => {
@@ -579,25 +546,19 @@ function banner(msg) { els.banner.hidden = !msg; els.banner.textContent = msg ||
 // ---------- detail panel ----------
 const pubMilestones = (proj) => {
   const out = [];
-  (function w(ns) { for (const n of ns) { if (n.id && (n.tags || []).includes('public') && n.date) out.push({ id: n.id, text: n.date.text, done: n.checkbox === 'done' }); w(n.children || []); } })(proj.nodes || []);
+  (function w(ns) { for (const n of ns) { if (n.id && inIface(n) && n.date) out.push({ id: n.id, text: n.date.text, done: n.checkbox === 'done' }); w(n.children || []); } })(proj.nodes || []);
   return out;
 };
-// Interface of a sub-project: from its loaded file when loaded, else from the lock.
+// Interface of a sub-project: read live from its file (loaded, or its one-hop read).
 function ifaceOf(it) {
-  const en = it.target && S.projects.get(it.target), lk = it.target && S.lock.get(it.target);
-  const ok = en && en.status === 'ok';
-  const o = { loaded: ok, lock: lk || null, ms: [], src: '' };
-  if (ok) {
-    const p = en.proj;
+  const p = it.target && known(it.target);
+  const o = { ms: [], src: p ? 'read live' : 'unknown (not readable here)' };
+  if (p) {
     o.commitment = p.commitment && p.commitment.text;
-    o.start = (lk && lk.start) || (p.forecast && p.forecast.start) || null;
+    o.start = (p.forecast && p.forecast.start) || null;
     o.ms = pubMilestones(p);
-    o.src = 'loaded file' + (lk ? `; lock seen ${lk.seen || '?'}` : '');
-  } else if (lk) {
-    o.commitment = dateText(lk.commitment); o.start = lk.start || null;
-    for (const [id, v] of Object.entries(lk.milestones || {})) o.ms.push({ id, text: v && v.replaced_by ? 'replaced by ^' + v.replaced_by : dateText(v) });
-    o.src = `lock (${baseName(S.lockKey)}), as of ${lk.seen || '?'}` + (en && en.status === 'error' ? ' - file unreachable' : ' - file not loaded');
-  } else o.src = en && en.status === 'error' ? 'unknown - unreachable and not in a lock' : 'unknown - not loaded and not in a lock';
+    o.done = p.done && p.done.text;
+  }
   return o;
 }
 
@@ -612,18 +573,16 @@ function showDetail(row) {
   let head, line = null;
   if (it.kind === 'project') {
     const p = en.proj, pf = p.forecast || {};
-    head = `<h2>${esc(p.title)}</h2><span class="badge">project</span>${p.state ? `<span class="badge">${esc(p.state)}</span>` : ''}${pf.conflict ? '<span class="badge red">conflict</span>' : ''}`;
+    head = `<h2>${esc(p.title)}</h2><span class="badge">project</span>${pf.conflict ? '<span class="badge red">conflict</span>' : ''}`;
     add('Commitment', esc(p.commitment && p.commitment.text));
     add('Forecast start', esc(pf.start || ''));
     add('Forecast end', esc(pf.end || ''));
     add('Duration', durText(row));
     add('Owner', esc(p.owner && p.owner.text));
-    add('Stakeholders', (p.stakeholders || []).map(person).join(', '));
-    add('ID', esc(p.id));
     const sfx = p.suffix || {};
     add('Declared', esc([sfx.date, sfx.range, sfx.duration].filter(Boolean).map((x) => x.text).join('  ')));
     add('Tags', esc((sfx.tags || []).map((t) => '#' + t).join(' ')));
-    for (const [k, v] of Object.entries(p.header || {})) if (!['owner', 'stakeholders', 'commitment', 'state', 'id'].includes(k.toLowerCase())) add(k, esc(v));
+    for (const [k, v] of Object.entries(p.header || {})) if (!['owner', 'stakeholders', 'commitment'].includes(k.toLowerCase())) add(k, esc(v));
     for (const [k, v] of Object.entries(sfx.keys || {})) add(k, vals(v));
   } else {
     const f = n.forecast || {};
@@ -646,22 +605,18 @@ function showDetail(row) {
     add('By', vals(k.by));
     add('Tags', esc((n.tags || []).map((t) => '#' + t).join(' ')));
     add('Owner', vals(k.owner) || esc(ownerText(row)));
-    add('Approvers', vals(k.approver));
-    const inKeys = ['after', 'by', 'owner', 'approver'];
+    const inKeys = ['after', 'by', 'owner'];
     for (const key of Object.keys(k)) if (!inKeys.includes(key)) add(key, vals(k[key]));
     add('ID', n.id ? '^' + esc(n.id) : '');
     if (it.kind === 'subproject') {
       const ifc = ifaceOf(it);
       add('Link', it.target ? `<a href="#" data-md="${esc(it.target)}">${esc(it.target)}</a>` : '');
       if (row.failed) add('Load error', esc(row.sub.err));
-      if (row.sub && row.sub.status === 'ok') add('State', esc(row.sub.proj.state));
       dl.push('<dt></dt><dd><b>Interface</b></dd>');
       add('Source', esc(ifc.src));
       add('Commitment', esc(ifc.commitment));
       add('Start', esc(ifc.start));
-      if (ifc.lock && ifc.lock.by) add('Need-by', esc(dateText(ifc.lock.by) || ifc.lock.by));
-      if (ifc.lock && ifc.lock.late) add('Late', `<span class="late">forecast ${esc(ifc.lock.late)}, after its Commitment</span>`);
-      if (ifc.lock) { add('Project ID', esc(ifc.lock.id)); add('Hash', esc(ifc.lock.hash)); }
+      add('Done', esc(ifc.done));
       add('Public milestones', ifc.ms.length ? '<ul>' + ifc.ms.map((m) => `<li>${esc(m.id)}: ${esc(m.text)}</li>`).join('') + '</ul>' : '');
     }
   }
@@ -756,14 +711,12 @@ async function navigate(key, crumbs, push) {
   const token = ++S.navToken;
   S.rootKey = key; S.crumbs = crumbs;
   S.collapsed = new Set(); S.expanded = new Set(); S.selId = null;
-  S.projects = new Map(); S.linkItem = new Map(); S.idItem = new Map(); S.rowById = new Map();
+  S.projects = new Map(); S.peek = new Map(); S.linkItem = new Map(); S.idItem = new Map(); S.rowById = new Map();
   S.rawMin = null; S.rangeSet = false; S.needFit = true;
   hideDetail();
   if (push) history.pushState({ crumbs }, '', '?root=' + urlParam(key));
   banner('');
   S.rows = []; updateToolbar(); render();
-  await loadLock(key);
-  if (token !== S.navToken) return;
   const en = await loadProject(key);
   if (token !== S.navToken) return;
   if (en.status === 'error') { banner(`Could not load ${key}: ${en.err}`); updateToolbar(); return; }

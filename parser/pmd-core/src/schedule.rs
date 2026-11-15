@@ -1,24 +1,17 @@
-//! Forecasting (FORMAT §7): pure, one file plus the declared interfaces of the files it links.
+//! Forecasting (FORMAT §7): pure, one file plus the declared dates of the files it links.
 
 use crate::date::{parse_date, Civil, DateParse};
 use crate::graph::{resolve, split_fragment};
-use crate::lock::LockEntry;
 use crate::model::*;
 use std::collections::{BTreeMap, HashMap};
 
-/// The declared dates a file offers to others: its Commitment and `#public` milestones.
+/// The declared dates a file offers to others: its Commitment and milestones.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Interface {
     /// (start, end) of the Commitment.
     pub commitment: Option<(Civil, Civil)>,
-    /// Earliest declared date of the project (Commitment start if a range, else the earliest
-    /// start of any declared date, range or milestone).
-    pub start: Option<Civil>,
     /// Public milestone id -> declared (end) date.
     pub milestones: BTreeMap<String, Civil>,
-    /// Forecast end when the owner says the project cannot keep its Commitment (lock `late=`).
-    /// Counts as the project's end instead of the Commitment end.
-    pub late: Option<Civil>,
 }
 
 /// Interfaces by normalized path or URL.
@@ -42,12 +35,10 @@ pub fn span_of_text(s: &str) -> Option<(Civil, Civil)> {
 impl Interface {
     pub fn from_texts<'a>(
         commitment: Option<&str>,
-        start: Option<&str>,
         milestones: impl IntoIterator<Item = (&'a str, &'a str)>,
     ) -> Interface {
         let mut i = Interface {
             commitment: commitment.and_then(span_of_text),
-            start: start.and_then(span_of_text).map(|s| s.0),
             ..Default::default()
         };
         for (id, d) in milestones {
@@ -58,40 +49,16 @@ impl Interface {
         i
     }
     pub fn from_project(p: &Project) -> Interface {
-        let mut i = Interface {
-            commitment: p.commitment.as_ref().map(|c| (c.start, c.end)),
-            start: project_start(p),
-            ..Default::default()
-        };
-        p.walk(|n| {
-            if n.kind == NodeKind::Milestone && n.has_tag("public") && n.checkbox != Checkbox::Cancelled {
-                if let (Some(id), Some(d)) = (&n.id, &n.date) {
-                    i.milestones.entry(id.clone()).or_insert(d.end);
+        let mut i = Interface { commitment: p.commitment.as_ref().map(|c| (c.start, c.end)), ..Default::default() };
+        for it in crate::iface::interface_items(p) {
+            if it.checkbox != '-' {
+                if let Some(id) = it.id {
+                    i.milestones.entry(id).or_insert(it.end);
                 }
             }
-        });
-        i
-    }
-    pub fn from_lock_entry(e: &LockEntry) -> Interface {
-        let mut i = Interface::from_texts(e.field("commitment"), e.field("start"), e.milestones.iter().map(|(a, b)| (a.as_str(), b.as_str())));
-        i.late = e.field("late").and_then(span_of_text).map(|s| s.1);
-        i
-    }
-}
-
-/// Earliest declared date of a project: the Commitment start if it is a range, else the
-/// earliest start of any declared date, range or milestone in the file.
-pub fn project_start(p: &Project) -> Option<Civil> {
-    if let Some(c) = p.commitment.as_ref().filter(|c| c.range) {
-        return Some(c.start);
-    }
-    let mut best: Option<Civil> = None;
-    p.walk(|n| {
-        for d in [&n.range, &n.date].into_iter().flatten() {
-            best = mn(best, Some(d.start));
         }
-    });
-    best
+        i
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -110,6 +77,8 @@ struct Info<'a> {
     decl_start: Option<Civil>,
     decl_end: Option<Civil>,
     iface: Option<Interface>,
+    /// Deliverable: the milestone's date in the target's interface.
+    deliv: Option<Civil>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -145,28 +114,6 @@ fn mn(a: Option<Civil>, b: Option<Civil>) -> Option<Civil> {
     }
 }
 
-/// Declared end of a cross-file target: a milestone (`file.md#id`) or the project's end.
-pub fn ext_date(path: &str, target: &str, interfaces: &Interfaces) -> Option<Civil> {
-    let (p, frag) = split_fragment(target);
-    if p.is_empty() {
-        return None;
-    }
-    let key = resolve(path, target);
-    let i = interfaces.get(&key)?;
-    match frag.filter(|f| !f.is_empty()) {
-        Some(f) => i.milestones.get(f).copied(),
-        None => i.late.or(i.commitment.map(|c| c.1)),
-    }
-}
-
-fn value_target(v: &Value) -> Option<&str> {
-    match v.kind {
-        ValueKind::Link => v.target.as_deref(),
-        ValueKind::Word => Some(v.text.as_str()),
-        _ => None,
-    }
-}
-
 impl<'a> Ctx<'a> {
     fn eval(&mut self, i: usize) {
         if self.state[i] != 0 {
@@ -180,14 +127,18 @@ impl<'a> Ctx<'a> {
             self.eval_dep(i, k);
         }
         let deps = self.infos[i].deps.clone();
+        // A task starts the day after its predecessor ends. A milestone or deliverable is a point
+        // in time and may fall on the day its predecessor ends.
+        let point = matches!(node.kind, NodeKind::Milestone | NodeKind::Deliverable);
         let mut after: Option<Civil> = None;
+        let step = |c: Civil| if point { c } else { Civil::from_days(c.to_days() + 1) };
         for d in deps {
             match d {
-                Dep::Fixed(c) => after = mx(after, Some(c)),
+                Dep::Fixed(c) => after = mx(after, Some(step(c))),
                 Dep::Local(j) => {
                     if self.eval_dep(i, j) {
-                        if let Some(r) = self.res[j] {
-                            after = mx(after, r.end);
+                        if let Some(e) = self.res[j].and_then(|r| r.end) {
+                            after = mx(after, Some(step(e)));
                         }
                     }
                 }
@@ -200,7 +151,6 @@ impl<'a> Ctx<'a> {
         }
         let today = self.today;
         let info = &self.infos[i];
-        let after = after.map(|a| Civil::from_days(a.to_days() + 1));
         let mut start = mx(info.decl_start, after);
         let mut kid_start = None;
         let mut kid_end = None;
@@ -211,23 +161,33 @@ impl<'a> Ctx<'a> {
             }
         }
         let mut end: Option<Civil>;
-        if let Some(iface) = info.iface.as_ref().filter(|f| f.commitment.is_some()) {
+        if node.kind == NodeKind::Heading {
+            end = kid_end;
+            start = mn(start, kid_start);
+        } else if let Some(d) = info.deliv {
+            // deliverable: the milestone's date
+            end = Some(d);
+            if start.is_none() {
+                start = Some(d);
+            }
+        } else if let Some(iface) = info.iface.as_ref().filter(|f| f.commitment.is_some() && node.kind == NodeKind::Subproject) {
             // sub-project: the child's declared Commitment
             let (cs, ce) = iface.commitment.unwrap();
-            end = Some(iface.late.unwrap_or(ce));
+            end = Some(ce);
             if start.is_none() {
-                start = iface.start.or(if cs != ce { Some(cs) } else { None });
+                start = Some(if cs != ce { cs } else { ce });
             }
         } else if let Some(dur) = &node.duration {
-            if start.is_none() && unfinished(node) {
-                start = Some(today);
+            if unfinished(node) && info.decl_start.is_none() && (start.is_none() || info.deps.is_empty()) {
+                start = mx(start, Some(today));
             }
             end = start.map(|s| dur.end_from(s));
         } else if kid_end.is_some() {
             end = mx(kid_end, info.decl_end);
             start = mn(start, kid_start);
-        } else if node.kind == NodeKind::Subproject {
-            end = info.own_by;
+        } else if node.is_link_node() {
+            // a link to a child with no promise yet: the line's own estimate (promotion rule, D47)
+            end = info.decl_end.or(info.own_by);
         } else {
             end = info.decl_end;
         }
@@ -270,16 +230,19 @@ fn collect<'a>(n: &'a Node, parent: Option<usize>, infos: &mut Vec<Info<'a>>) ->
         (None, Some(d)) => (Some(d.0), Some(d.1)),
         _ => (None, None),
     };
+    // Headings are grouping only and carry no dates (D47).
+    let heading = n.kind == NodeKind::Heading;
     infos.push(Info {
         node: n,
         parent,
         children: Vec::new(),
         deps: Vec::new(),
-        own_date: n.date.as_ref().map(|d| d.end),
+        own_date: if heading { None } else { n.date.as_ref().map(|d| d.end) },
         own_by: None,
         decl_start: ds,
         decl_end: de,
         iface: None,
+        deliv: None,
     });
     for c in &n.children {
         let ci = collect(c, Some(idx), infos);
@@ -302,7 +265,7 @@ fn apply<'a>(n: &mut Node, idx: &mut usize, res: &[Option<Res>], flags: &[(Optio
 /// Compute forecasts (FORMAT §7.1) and conflicts (7.2) for one file.
 ///
 /// `interfaces` holds the declared dates of other files (7.3). Sets `forecast` on every node and on
-/// the project, `link_resolved` on linked nodes, and appends `E-CONFLICT`, `E-BOUND` and `E-CYCLE`
+/// the project, `link_resolved` on linked nodes, and appends `E-CONFLICT` and `E-CYCLE`
 /// diagnostics.
 pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
     let path = project.path.clone();
@@ -322,30 +285,22 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
             if let Some(l) = &n.link {
                 let r = resolve(&path, &l.target);
                 infos[i].iface = interfaces.get(&r).cloned();
+                if n.kind == NodeKind::Deliverable {
+                    let frag = split_fragment(&l.target).1.unwrap_or("");
+                    infos[i].deliv = infos[i].iface.as_ref().and_then(|f| f.milestones.get(frag).copied());
+                }
                 links[i] = Some(r);
             }
             let local = |t: &str| -> Option<usize> { ids.get(t.trim_start_matches('^')).copied() };
             let mut deps = Vec::new();
             if let Some(vs) = n.keys.get("after") {
                 for v in vs {
-                    if v.kind != ValueKind::Link && v.end.is_some() {
-                        deps.push(Dep::Fixed(v.end.unwrap()));
+                    if let Some(e) = v.end {
+                        deps.push(Dep::Fixed(e));
                         continue;
                     }
-                    let t = match value_target(v) {
-                        Some(t) => t,
-                        None => continue,
-                    };
-                    if t.starts_with('^') {
-                        if let Some(j) = local(t) {
-                            deps.push(Dep::Local(j));
-                        }
-                    } else if t.starts_with('#') {
-                        if let Some(j) = local(&t[1..]) {
-                            deps.push(Dep::Local(j));
-                        }
-                    } else if let Some(c) = ext_date(&path, t, interfaces) {
-                        deps.push(Dep::Fixed(c));
+                    if let Some(j) = local(&v.text) {
+                        deps.push(Dep::Local(j));
                     }
                 }
             }
@@ -353,16 +308,9 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
             let mut by = None;
             if let Some(vs) = n.keys.get("by") {
                 for v in vs {
-                    let d = if let Some(e) = v.end {
-                        Some(e)
-                    } else {
-                        match value_target(v) {
-                            Some(t) if t.starts_with('^') => {
-                                local(t).and_then(|j| infos[j].own_date.or(infos[j].decl_end))
-                            }
-                            Some(t) => ext_date(&path, t, interfaces),
-                            None => None,
-                        }
+                    let d = match v.end {
+                        Some(e) => Some(e),
+                        None => local(&v.text).and_then(|j| infos[j].own_date.or(infos[j].decl_end)),
                     };
                     by = mn(by, d);
                 }
@@ -411,7 +359,10 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
             if let Some(d) = inf.own_date {
                 bounds.push((d, "own"));
             }
-            if let Some(b) = inf.own_by {
+            // A link whose interface is known has a contract, not a bound: `by:` against the
+            // promise is a negotiation (W-DISPUTED from the contracts), never a conflict.
+            let contract = inf.deliv.is_some() || (inf.node.kind == NodeKind::Subproject && inf.iface.as_ref().is_some_and(|f| f.commitment.is_some()));
+            if let (Some(b), false) = (inf.own_by, contract) {
                 bounds.push((b, "by"));
             }
             let mut a = inf.parent;
@@ -432,6 +383,11 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
                 .copied();
             if let Some((b, why)) = worst {
                 flags[i] = (Some(b), true);
+                // The Commitment is reported once for the file (below); other bounds where the
+                // conflict originates, not on every container it passes through.
+                if why == "commitment" {
+                    continue;
+                }
                 let kid_conflict = inf.children.iter().any(|&k| flags[k].1);
                 if kid_conflict && node.duration.is_none() {
                     continue;
@@ -442,21 +398,12 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
                     "container" => format!("its container's `by: {}`", b),
                     _ => format!("the Commitment {}", b),
                 };
-                let d = if node.kind == NodeKind::Subproject && why == "by" && inf.iface.is_some() {
-                    Diagnostic::new(
-                        Severity::E,
-                        "E-BOUND",
-                        node.line,
-                        format!("`{}` commits to {}, after the bound {}", node.title, end, bound_name),
-                    )
-                } else {
-                    Diagnostic::new(
-                        Severity::E,
-                        "E-CONFLICT",
-                        node.line,
-                        format!("`{}` is forecast to end {}, after {}", node.title, end, bound_name),
-                    )
-                };
+                let d = Diagnostic::new(
+                    Severity::E,
+                    "E-CONFLICT",
+                    node.line,
+                    format!("`{}` is forecast to end {}, after {}", node.title, end, bound_name),
+                );
                 cx.diags.push(d);
             }
         }
@@ -470,7 +417,7 @@ pub fn schedule(project: &mut Project, today: Civil, interfaces: &Interfaces) {
         }
         let peff = tops.iter().fold(None, |a, &t| mx(a, eff[t]));
         let pconf = matches!((peff, proj_end), (Some(e), Some(c)) if e > c);
-        if pconf && !tops.iter().any(|&t| flags[t].1) {
+        if pconf {
             let mut d = Diagnostic::new(
                 Severity::E,
                 "E-CONFLICT",

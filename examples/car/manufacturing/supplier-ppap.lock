@@ -1,4 +1,0 @@
-# supplier-ppap.lock — tool-generated snapshot; rebuild with `pmd lock supplier-ppap.md`.
-../powertrain/battery-pack/cell-module/supplier-qualification.md  id=cars.example.com/platform/battery-pack/cell-module/supplier-qualification  hash=7ede25d9639f491a  commitment=2027-04-15  start=2026-10-20  seen=2026-11-15
-    qualified  2027-04-15
-https://supplier-portal.example.net/projects/inv-2207.md  seen=2026-11-15

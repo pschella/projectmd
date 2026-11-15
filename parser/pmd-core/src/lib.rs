@@ -4,18 +4,16 @@
 pub mod date;
 pub mod fmt;
 pub mod graph;
-pub mod lock;
+pub mod contract;
+pub mod iface;
 pub mod model;
 pub mod parse;
-pub mod profile;
 pub mod schedule;
-pub mod sha256;
 
 pub use date::{parse_date, Civil, DateParse};
 pub use graph::{is_remote, normalize, project_links, resolve, split_fragment, Graph, Link, LinkKind};
-pub use lock::{build_lock, Lock, LockEntry};
+pub use iface::{in_interface, interface_items, is_empty_promise, is_private, IfaceItem};
+pub use contract::{contract_diags, contracts_of, deliverable_state, project_state, Child, Contract, State};
 pub use model::*;
 pub use parse::parse;
-pub use profile::{parse_profile, profile_candidates};
 pub use schedule::{schedule, span_of_text, Interface, Interfaces};
-pub use sha256::{hash_prefix, sha256_hex};

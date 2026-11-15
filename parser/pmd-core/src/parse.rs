@@ -4,7 +4,7 @@ use crate::date::{parse_date, range_of, split_range_word, DateParse, RangeParse}
 use crate::model::*;
 use std::collections::{BTreeMap, HashMap};
 
-const CORE_KEYS: [&str; 5] = ["owner", "after", "by", "approver", "replaced-by"];
+const CORE_KEYS: [&str; 4] = ["owner", "after", "by", "done"];
 
 #[inline]
 fn is_ws(b: u8) -> bool {
@@ -57,17 +57,10 @@ pub fn is_duration(w: &str) -> Option<(u32, char)> {
     Some((n, u as char))
 }
 
-/// `^@[A-Za-z0-9._-]+$`
-pub fn is_handle(w: &str) -> bool {
+/// `YYYY-MM-DD` shape (validity is checked separately).
+fn is_exact_shape(w: &str) -> bool {
     let b = w.as_bytes();
-    b.len() >= 2 && b[0] == b'@' && b[1..].iter().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'-'))
-}
-
-fn is_path_id(w: &str) -> bool {
-    match w.find('#') {
-        Some(i) => i > 0 && i + 1 < w.len(),
-        None => false,
-    }
+    b.len() == 10 && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
 }
 
 fn ends_md(w: &str) -> bool {
@@ -402,8 +395,6 @@ enum Leading {
 }
 
 struct P<'a> {
-    extra: Vec<String>,
-    rep: Vec<String>,
     diags: Vec<Diagnostic>,
     refdefs: BTreeMap<String, RefDef>,
     atoms: Vec<Atom>,
@@ -412,10 +403,8 @@ struct P<'a> {
 }
 
 /// Parse one projectmd file. Never fails; problems go to `diagnostics`.
-pub fn parse(path: &str, src: &str, opts: &Options) -> Project {
+pub fn parse(path: &str, src: &str) -> Project {
     let mut p = P {
-        extra: opts.extra_keys.iter().map(|k| k.to_ascii_lowercase()).collect(),
-        rep: opts.repeatable.iter().map(|k| k.to_ascii_lowercase()).collect(),
         diags: Vec::new(),
         refdefs: BTreeMap::new(),
         atoms: Vec::new(),
@@ -431,11 +420,11 @@ impl<'a> P<'a> {
     }
 
     fn is_known_name(&self, name: &str) -> bool {
-        CORE_KEYS.iter().any(|k| k.eq_ignore_ascii_case(name)) || self.extra.iter().any(|k| k.eq_ignore_ascii_case(name))
+        CORE_KEYS.iter().any(|k| k.eq_ignore_ascii_case(name))
     }
 
     fn is_repeatable(&self, lname: &str) -> bool {
-        lname == "after" || lname == "approver" || self.rep.iter().any(|k| k == lname)
+        lname == "after"
     }
 
     /// If the atom is a known key word `name:`, return the name slice.
@@ -550,22 +539,14 @@ impl<'a> P<'a> {
 
     fn typecheck(&self, lkey: &str, v: &Value) -> bool {
         match lkey {
-            "owner" | "approver" => {
-                v.kind == ValueKind::Person || (v.kind == ValueKind::Word && is_handle(&v.text))
-            }
-            "after" => match v.kind {
-                ValueKind::Link => true,
-                ValueKind::Word => is_id(&v.text) || is_path_id(&v.text) || ends_md(&v.text),
+            "owner" => matches!(v.kind, ValueKind::Person | ValueKind::Word),
+            // D47: `after:` and `by:` take local `^id`s or dates only; cross-file edges are link lines.
+            "after" | "by" => match v.kind {
+                ValueKind::Range => lkey == "by",
+                ValueKind::Word => parse_date(&v.text) != DateParse::NotDate || is_id(&v.text),
                 _ => false,
             },
-            "by" => match v.kind {
-                ValueKind::Link | ValueKind::Range => true,
-                ValueKind::Word => {
-                    parse_date(&v.text) != DateParse::NotDate || is_id(&v.text) || is_path_id(&v.text)
-                }
-                _ => false,
-            },
-            "replaced-by" => v.kind == ValueKind::Word && is_id(&v.text),
+            "done" => v.kind == ValueKind::Word && is_exact_shape(&v.text) && parse_date(&v.text) != DateParse::NotDate,
             _ => true,
         }
     }
@@ -739,6 +720,13 @@ impl<'a> P<'a> {
                 }
             }
             break;
+        }
+        // W-KEYLIKE: a known key followed by a value that does not parse stays in the title.
+        for k in 1..end.saturating_sub(1) {
+            if let Some(name) = self.atom_key(text, &atoms[k]) {
+                let val = &text[atoms[k + 1].s..atoms[k + 1].e];
+                self.diag(Severity::W, "W-KEYLIKE", line, keylike_msg(name, val));
+            }
         }
         let (ts, te) = if end == 0 { (0, 0) } else { (atoms[0].s, atoms[end - 1].e) };
         let single_link = if end == 1 && atoms[0].is_link() { Some(atoms[0]) } else { None };
@@ -936,8 +924,8 @@ impl<'a> P<'a> {
             Leading::None => {
                 if let Some(a) = ext.single_link {
                     let (t, target, ti) = self.link_parts(rest, &a);
-                    if is_subproject_target(target) {
-                        kind = NodeKind::Subproject;
+                    if is_subproject_target(target) || is_deliverable_target(target) {
+                        kind = if target.contains('#') { NodeKind::Deliverable } else { NodeKind::Subproject };
                         title = t.to_string();
                         link = Some(LinkInfo { text: t.to_string(), target: target.to_string(), title: ti.map(|s| s.to_string()) });
                     }
@@ -992,7 +980,12 @@ impl<'a> P<'a> {
         self.atoms = atoms;
         let v = match v {
             Some(v) if self.typecheck(&lname, &v) => v,
-            _ => return false,
+            _ => {
+                if matches!(lname.as_str(), "after" | "by") && !matches!(stack.last(), Some(Slot::Prose { .. })) {
+                    self.diag(Severity::W, "W-KEYLIKE", line, keylike_msg(name, rest));
+                }
+                return false;
+            }
         };
         self.value_diag(&v, line);
         match stack.last_mut() {
@@ -1019,7 +1012,6 @@ impl<'a> P<'a> {
         let mut raws: Vec<Raw<'a>> = Vec::new();
         let mut pos = 0usize;
         let mut lineno = 0u32;
-        let mut fm_checked = false;
         let mut fence: Option<(u8, usize)> = None;
         let mut in_comment = false;
         let mut last_other = false;
@@ -1037,44 +1029,6 @@ impl<'a> P<'a> {
             pos = next;
             if pos > src.len() && line.is_empty() {
                 break;
-            }
-            // front matter
-            if !fm_checked {
-                fm_checked = true;
-                if line == "---" {
-                    // find terminator
-                    let mut q = pos;
-                    let mut ln = lineno;
-                    let mut found: Option<(usize, u32, usize)> = None;
-                    while q <= src.len() {
-                        let e = match src[q..].find('\n') {
-                            Some(i) => q + i,
-                            None => src.len(),
-                        };
-                        let mut l = &src[q..e];
-                        if l.ends_with('\r') {
-                            l = &l[..l.len() - 1];
-                        }
-                        ln += 1;
-                        if l == "---" || l == "..." {
-                            found = Some((e + 1, ln, q));
-                            break;
-                        }
-                        q = e + 1;
-                    }
-                    match found {
-                        Some((after, endln, tstart)) => {
-                            let body = &src[pos.min(tstart)..tstart];
-                            self.front_matter(body, lineno + 1, &mut hdr);
-                            pos = after;
-                            lineno = endln;
-                            continue;
-                        }
-                        None => {
-                            self.diag(Severity::E, "E-SYNTAX", 1, "front matter is not terminated");
-                        }
-                    }
-                }
             }
             let lb = line.as_bytes();
             if let Some((ch, len)) = fence {
@@ -1170,10 +1124,10 @@ impl<'a> P<'a> {
                         line,
                         checkbox: Checkbox::None,
                         title: text[ext.ts..ext.te].to_string(),
-                        date: ext.suffix.date,
+                        date: None,
                         suffix_date: None,
-                        range: ext.suffix.range,
-                        duration: ext.suffix.duration,
+                        range: None,
+                        duration: None,
                         tags: ext.suffix.tags,
                         id: ext.suffix.id,
                         keys: ext.suffix.keys,
@@ -1199,11 +1153,9 @@ impl<'a> P<'a> {
         let mut proj = Project {
             path: path.to_string(),
             title,
-            id: None,
             owner: None,
-            stakeholders: Vec::new(),
             commitment: None,
-            state: None,
+            done: None,
             header: BTreeMap::new(),
             suffix,
             nodes,
@@ -1215,27 +1167,22 @@ impl<'a> P<'a> {
             proj.header.insert(k.clone(), v.clone());
             match k.as_str() {
                 "owner" => {
-                    let a = self.single_value(v);
-                    match a {
-                        Some(val) if self.typecheck("owner", &val) => {
-                            self.value_diag(&val, *ln);
-                            proj.owner = Some(val)
+                    // A person is `Name <email>`; anything else is plain text.
+                    match self.single_value(v) {
+                        Some(val) if self.typecheck("owner", &val) => proj.owner = Some(val),
+                        _ if !v.trim().is_empty() => {
+                            proj.owner = Some(Value {
+                                kind: ValueKind::Word,
+                                text: v.trim().to_string(),
+                                target: None,
+                                title: None,
+                                name: None,
+                                email: None,
+                                start: None,
+                                end: None,
+                            })
                         }
-                        _ => self.diag(Severity::E, "E-SYNTAX", *ln, format!("owner must be a person or @handle: {}", v)),
-                    }
-                }
-                "stakeholders" => {
-                    for part in v.split(',') {
-                        let part = part.trim();
-                        if part.is_empty() {
-                            continue;
-                        }
-                        match self.single_value(part) {
-                            Some(val) if val.kind == ValueKind::Person || (val.kind == ValueKind::Word && is_handle(&val.text)) => {
-                                proj.stakeholders.push(val)
-                            }
-                            _ => self.diag(Severity::E, "E-SYNTAX", *ln, format!("stakeholder must be a person or @handle: {}", part)),
-                        }
+                        _ => self.diag(Severity::E, "E-SYNTAX", *ln, "owner is empty"),
                     }
                 }
                 "commitment" => {
@@ -1253,8 +1200,16 @@ impl<'a> P<'a> {
                     };
                     proj.commitment = ex.flatten();
                 }
-                "state" => proj.state = Some(v.clone()),
-                "id" => proj.id = Some(v.clone()),
+                "done" => {
+                    let w = v.trim();
+                    proj.done = match parse_date(w) {
+                        DateParse::Ok(a, b) if w.len() == 10 => Some(DateExpr { text: w.to_string(), start: a, end: b, range: false }),
+                        _ => {
+                            self.diag(Severity::E, "E-DATE", *ln, format!("done is not a date: {}", w));
+                            None
+                        }
+                    };
+                }
                 _ => {}
             }
         }
@@ -1318,53 +1273,11 @@ impl<'a> P<'a> {
         }
         j
     }
-
-    fn front_matter(&mut self, body: &str, first_line: u32, hdr: &mut BTreeMap<String, (String, u32)>) {
-        let mut cur: Option<(String, Vec<String>, u32)> = None;
-        let flush = |cur: &mut Option<(String, Vec<String>, u32)>, hdr: &mut BTreeMap<String, (String, u32)>| {
-            if let Some((k, items, ln)) = cur.take() {
-                hdr.insert(k, (items.join(", "), ln));
-            }
-        };
-        let mut ln = first_line;
-        for l in body.split('\n') {
-            let l = l.trim_end_matches('\r');
-            let t = l.trim();
-            if t.is_empty() || t.starts_with('#') {
-                ln += 1;
-                continue;
-            }
-            if l.starts_with(' ') || l.starts_with('\t') || t.starts_with("- ") {
-                if let Some(item) = t.strip_prefix("- ") {
-                    if let Some((_, items, _)) = cur.as_mut() {
-                        items.push(unquote(item.trim()).to_string());
-                    }
-                }
-            } else if let Some((k, v)) = t.split_once(':') {
-                flush(&mut cur, hdr);
-                let k = k.trim().to_ascii_lowercase();
-                let v = v.trim();
-                if v.is_empty() {
-                    cur = Some((k, Vec::new(), ln));
-                } else {
-                    let v = unquote(v);
-                    let v = if v.starts_with('[') && v.ends_with(']') { &v[1..v.len() - 1] } else { v };
-                    hdr.insert(k, (v.to_string(), ln));
-                }
-            }
-            ln += 1;
-        }
-        flush(&mut cur, hdr);
-    }
 }
 
-fn unquote(s: &str) -> &str {
-    let b = s.as_bytes();
-    if b.len() >= 2 && ((b[0] == b'"' && b[b.len() - 1] == b'"') || (b[0] == b'\'' && b[b.len() - 1] == b'\'')) {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
+/// Message for a known key whose value is not valid (it stays in the title).
+fn keylike_msg(name: &str, val: &str) -> String {
+    format!("`{}: {}` is not a valid `{}:` value; kept in the title", name, val, name)
 }
 
 /// `^([A-Za-z][A-Za-z0-9 _-]*):\s*(.*)$`
@@ -1381,6 +1294,21 @@ fn header_kv(body: &str) -> Option<(&str, &str)> {
         return None;
     }
     Some((&body[..i], body[i + 1..].trim()))
+}
+
+/// A `.md` target with a non-empty `#fragment`: a deliverable (GRAMMAR §2.3).
+fn is_deliverable_target(t: &str) -> bool {
+    match t.find('#') {
+        Some(i) if i + 1 < t.len() => {
+            let path = &t[..i];
+            let p = match path.find('?') {
+                Some(q) if path.starts_with("http://") || path.starts_with("https://") => &path[..q],
+                _ => path,
+            };
+            ends_md(p)
+        }
+        _ => false,
+    }
 }
 
 fn is_subproject_target(t: &str) -> bool {
@@ -1408,10 +1336,8 @@ pub(crate) struct ItemSplit {
 
 /// Split a list item body into checkbox, leading date, title and suffix. `None` when the body is
 /// not a planning item (prose or a property bullet).
-pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>, opts: &Options) -> Option<ItemSplit> {
+pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>) -> Option<ItemSplit> {
     let mut p = P {
-        extra: opts.extra_keys.iter().map(|k| k.to_ascii_lowercase()).collect(),
-        rep: opts.repeatable.iter().map(|k| k.to_ascii_lowercase()).collect(),
         diags: Vec::new(),
         refdefs: refdefs.clone(),
         atoms: Vec::new(),

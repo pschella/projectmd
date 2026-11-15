@@ -12,20 +12,19 @@ strings cross the boundary.
 | `pmd_alloc` | `(len: u32) -> u32` | allocate `len` bytes; returns a pointer |
 | `pmd_free` | `(ptr: u32, len: u32)` | free a buffer from `pmd_alloc` or from a result |
 | `pmd_parse` | `(in_ptr: u32, in_len: u32) -> u64` | input: UTF-8 JSON request (below). Returns `(ptr << 32) \| len` of a UTF-8 JSON result, which the caller frees |
-| `pmd_parse_lock` | `(in_ptr: u32, in_len: u32) -> u64` | input: raw lock file text (`NAME.lock`). Returns JSON `{ "entries": [ { "location", "id", "hash", "commitment": DateExpr\|null, "start": "YYYY-MM-DD"\|null, "by": string\|null, "late": string\|null, "seen", "milestones": { "<id>": DateExpr \| {"replaced_by": "<id>"} } } ] }` |
 
 ### `pmd_parse` request
+
+`path`, `src` and `today` (`YYYY-MM-DD`) are required; `interfaces` is optional (default: none).
 
 ```json
 {
   "path": "examples/car/aurora.md",
   "src": "<markdown text>",
   "today": "2026-11-14",
-  "profile": "<text of .pmd/profile.md, optional>",
   "interfaces": {
     "<normalized path or URL of another project>": {
       "commitment": "2028-02-15",
-      "start": "2026-10-01",
       "milestones": { "validated": "2028-02-15" }
     }
   }
@@ -33,12 +32,13 @@ strings cross the boundary.
 ```
 
 `interfaces` holds the **declared** dates of other projects (locality rule, FORMAT §7.3).
-The viewer fills it from the opened file's lock (`NAME.lock`: one entry per direct link) and from the lock of each loaded sub-project and from child projects it has already loaded.
+The viewer fills it by reading the opened file's direct links live (one hop) and from child
+projects it has already loaded; a link it cannot read is simply absent (unknown).
 The keys are paths normalised the same way the parser resolves links: relative to the
 current file's folder, `.` and `..` segments collapsed, with URLs kept as they are.
-An interface may include `"start"` (the project's earliest declared date, lock `start=`);
-it is the forecast start of a sub-project that has no other start. It may include `"late"`
-(lock `late=`): the child then counts as finishing at that date instead of its Commitment end.
+A `commitment` or milestone value is any date expression (FORMAT §5); a milestone's end day is
+used. The viewer omits `#private` and cancelled milestones, so only the public interface crosses a
+file boundary. An interface holds no forecast: only declared dates do.
 
 ### `pmd_parse` result
 
@@ -49,19 +49,21 @@ This is the same `Project` JSON as `pmd parse FILE`, plus forecasts:
 - every `Node` with a link gains `"link_resolved": "<normalized path or URL>"`;
 - `Project` gains `"forecast": { "start", "end", "declared_end", "conflict" }`, the
   project's span over its top-level nodes. `declared_end` is the end of its Commitment;
-- `Project.diagnostics` also includes `E-CONFLICT`.
+- `Project.diagnostics` also includes the scheduler's `E-CONFLICT` and `E-CYCLE`.
+
+Contract states (`requested`/`agreed`/`disputed`/`delivered`) are not part of the result; the
+viewer shows declared against forecast dates, and `pmd check` / `pmd tree` report states.
 
 Forecast rules follow FORMAT §7.1–7.3:
-- A sub-project's end is its Commitment from `interfaces`, or failing that its own `by:`;
-  its start is the interface `start` (or the Commitment start if that is a range).
+- A sub-project's end is its Commitment from `interfaces`; while the child has none, the line's own estimate (duration, range, `after:`) or its `by:`. Its start comes from its own `after:`/range, else the Commitment start.
 - Dates are inclusive days: a duration of N days from S ends on S+N-1 (`Nm`: S + N months - 1 day),
-  and a successor of an `after:` dependency starts the day after it ends.
+  and a successor of an `after:` dependency starts the day after it ends (milestones too).
 - A node with its own declared date/range and children spans min(starts) .. max(ends) of both.
-- A cross-file `after:` uses the target's declared date from `interfaces`; an unknown
-  target is ignored.
+- A deliverable line takes its date from the target milestone in `interfaces`; local items
+  follow it with `after: ^id`. `after:`/`by:` never name another file.
 - A node with nothing to place it in time gets `start`/`end` = null.
 - Durations are calendar time; `Nm` means calendar months.
 - An unfinished node never ends before `today`.
 - A cancelled node is not waited for.
 
-On malformed input the result is `{ "error": "<message>" }`.
+On a malformed request (invalid JSON, missing or ill-typed `path`/`src`/`today`) the result is `{ "error": "<message>" }`.

@@ -5,8 +5,7 @@
 // project lives in its own folder (root.md at the top, then p1/index.md,
 // p1/p2/index.md, ...). Output is deterministic for a given seed.
 //
-// Phase one plans the whole tree in memory (commitments, milestones, public
-// ids) so that cross-file references can point at any project. Phase two
+// Phase one plans the whole tree in memory (commitments, milestones, ids) so that cross-file references can point at any project. Phase two
 // renders and writes each file.
 package main
 
@@ -63,7 +62,6 @@ var (
 		"de Boer", "Visser", "Jansen", "Bakker", "Smit", "Meijer", "Mulder", "Vos",
 		"Peters", "Hendriks", "Dekker", "Kowalski", "Nair", "Schell", "Wagner", "Rossi",
 	}
-	states = []string{"in-development", "planned", "in-review", "approved"}
 )
 
 type milestone struct {
@@ -84,7 +82,7 @@ type node struct {
 	end      time.Time
 	by       time.Time // end date the parent asks of this project
 	ms       []milestone
-	pubs     []int // indexes into ms of #public milestones
+	pubs     []int // indexes into ms of the milestones other projects may reference
 }
 
 // builder plans the tree and all milestones.
@@ -170,7 +168,7 @@ type writer struct {
 	remaining int
 }
 
-// crossRef returns a link to a random #public milestone in another project.
+// crossRef returns a link to a random public (not #private) milestone in another project.
 func (w *writer) crossRef() string {
 	t := w.rng.Intn(len(w.nodes) - 1)
 	if t >= w.cur {
@@ -193,6 +191,12 @@ func (w *writer) emitTask(indent string, sub bool) {
 	w.remaining--
 
 	title := verbs[r.Intn(len(verbs))] + " " + objects[r.Intn(len(objects))]
+	// A cross-file dependency is a deliverable line plus a local after: on its id.
+	xid := ""
+	if len(w.nodes) > 1 && r.Float64() < w.xref {
+		xid = "x" + strconv.Itoa(w.counter)
+		fmt.Fprintf(&w.buf, "%s- [ ] %s  ^%s\n", indent, w.crossRef(), xid)
+	}
 	dur := fmt.Sprintf("%dw", 1+r.Intn(12))
 	if sub {
 		dur = fmt.Sprintf("%dd", 2+r.Intn(19))
@@ -207,8 +211,8 @@ func (w *writer) emitTask(indent string, sub bool) {
 	if len(w.local) > 0 && r.Float64() < 0.3 {
 		fmt.Fprintf(&w.buf, "  after: ^%s", w.local[r.Intn(len(w.local))])
 	}
-	if len(w.nodes) > 1 && r.Float64() < w.xref {
-		fmt.Fprintf(&w.buf, "  after: %s", w.crossRef())
+	if xid != "" {
+		fmt.Fprintf(&w.buf, "  after: ^%s", xid)
 	}
 
 	// Owner: inline on the line, as a property bullet, or none.
@@ -242,27 +246,18 @@ func (w *writer) render(i int) []byte {
 	w.local = w.local[:0]
 	w.counter = 0
 	w.remaining = w.items
-	r := w.rng
 	b := &w.buf
 
 	fmt.Fprintf(b, "# %s\n\n", n.title)
 	fmt.Fprintf(b, "- Owner: %s\n", n.owner)
 	fmt.Fprintf(b, "- Commitment: %s .. %s\n", n.start.Format(dateLayout), n.end.Format(dateLayout))
-	fmt.Fprintf(b, "- State: %s\n", states[r.Intn(len(states))])
-	if r.Float64() < 0.1 {
-		label := n.folder
-		if n.folder == "" {
-			label = "root"
-		}
-		fmt.Fprintf(b, "- ID: gen.example.com/%s\n", label)
-	}
 
 	b.WriteString("\nGenerated benchmark project. Schedule and scope are synthetic.\n\n")
 	b.WriteString("## Key dates\n\n")
 	for _, m := range n.ms {
 		fmt.Fprintf(b, "- [ ] %s %s", m.date.Format(dateLayout), m.title)
-		if m.public {
-			b.WriteString("  #public")
+		if !m.public {
+			b.WriteString("  #private")
 		}
 		fmt.Fprintf(b, "  ^%s\n", m.id)
 		w.local = append(w.local, m.id)
@@ -301,7 +296,7 @@ func main() {
 	depth := flag.Int("depth", 3, "levels below the root project")
 	fanout := flag.Int("fanout", 3, "sub-projects per project")
 	items := flag.Int("items", 10, "tasks per project, including nested sub-tasks")
-	xrefs := flag.Float64("xrefs", 0, "probability per task of a cross-file after: reference")
+	xrefs := flag.Float64("xrefs", 0, "probability per task of a cross-file deliverable line")
 	seed := flag.Int64("seed", 1, "random seed")
 	flag.Parse()
 

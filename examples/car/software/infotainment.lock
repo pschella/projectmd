@@ -1,7 +1,0 @@
-# infotainment.lock — tool-generated snapshot; rebuild with `pmd lock infotainment.md`.
-../aurora.md  id=cars.example.com/aurora  hash=c339f79485116892  commitment=2028-11-30  start=2026-10-01  seen=2026-11-15
-    design-freeze  2027-06-30
-    prototypes  2027-Q4
-    sop  2028-11-30
-    tooling-release  2028-03-31
-    type-approval  2028-09-30

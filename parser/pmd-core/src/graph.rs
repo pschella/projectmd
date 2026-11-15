@@ -118,9 +118,12 @@ pub fn project_links(p: &Project) -> Vec<Link> {
         }
     }
     p.walk(|n| {
-        if n.kind == NodeKind::Subproject {
-            if let Some(l) = &n.link {
-                add(LinkKind::Subproject, n.line, &l.target);
+        if let Some(l) = &n.link {
+            match n.kind {
+                NodeKind::Subproject => add(LinkKind::Subproject, n.line, &l.target),
+                // a deliverable reads one interface item of another project; it includes nothing
+                NodeKind::Deliverable => add(LinkKind::Reference, n.line, &l.target),
+                _ => {}
             }
         }
         for vals in n.keys.values() {
@@ -153,7 +156,6 @@ pub struct Graph {
     root: String,
     projects: Vec<Project>,
     index: HashMap<String, usize>,
-    hashes: HashMap<String, String>,
 }
 
 impl Graph {
@@ -173,16 +175,8 @@ impl Graph {
             }
         }
     }
-    /// Add with the file's content hash (see `hash_prefix`), for lock building.
-    pub fn add_hashed(&mut self, project: Project, hash: String) {
-        self.hashes.insert(normalize(&project.path), hash);
-        self.add(project);
-    }
     pub fn get(&self, path: &str) -> Option<&Project> {
         self.index.get(&normalize(path)).map(|&i| &self.projects[i])
-    }
-    pub fn hash(&self, path: &str) -> Option<&str> {
-        self.hashes.get(&normalize(path)).map(|s| s.as_str())
     }
     pub fn projects(&self) -> &[Project] {
         &self.projects
@@ -232,14 +226,14 @@ impl Graph {
                         let mut m = HashMap::new();
                         self.projects[ti].walk(|n| {
                             if let Some(id) = &n.id {
-                                m.entry(id.clone()).or_insert(n.has_tag("public"));
+                                m.entry(id.clone()).or_insert(crate::iface::is_referable(n));
                             }
                         });
                         m
                     });
                     match idx.get(frag.as_str()) {
                         None => d("E-REF-MISSING", format!("no item ^{} in {}", frag, l.path)),
-                        Some(false) => d("E-REF-PUBLIC", format!("^{} in {} is not #public", frag, l.path)),
+                        Some(false) => d("E-REF-PUBLIC", format!("`{}#{}` is not in its interface", l.path, frag)),
                         Some(true) => {}
                     }
                 }

@@ -16,13 +16,12 @@ the lines top to bottom and classifies each, in this priority order:
 
 | # | Line class | Recognised by | Effect |
 |---|---|---|---|
-| 1 | Front matter | line 1 is `---`; ends at the next line that is `---` or `...` | Lines between are YAML (§6.2). Only allowed at the very top. |
-| 2 | Fence | `^\s{0,3}(```+\|~~~+)` | Toggles a code block; lines inside are ignored until a closing fence of the same character and at least the same length. |
-| 3 | HTML comment | a line starting `<!--` | Ignored up to and including the line containing `-->`. |
-| 4 | Heading | `^(#{1,6})\s+(.*?)\s*#*\s*$` | §3. |
-| 5 | Reference definition | `^\s{0,3}\[([^\]]+)\]:\s+(\S+)(?:\s+"([^"]*)")?\s*$` | Records `label → (target, title)`. Labels are case-insensitive. Applies to the whole file. |
-| 6 | List item | `^(\s*)([-*+])\s+(.*)$` | §2. Indent = width of group 1 in columns. |
-| 7 | Other | anything else | Prose. Ignored. A blank line does not end a list. |
+| 1 | Fence | `^\s{0,3}(```+\|~~~+)` | Toggles a code block; lines inside are ignored until a closing fence of the same character and at least the same length. |
+| 2 | HTML comment | a line starting `<!--` | Ignored up to and including the line containing `-->`. |
+| 3 | Heading | `^(#{1,6})\s+(.*?)\s*#*\s*$` | §3. |
+| 4 | Reference definition | `^\s{0,3}\[([^\]]+)\]:\s+(\S+)(?:\s+"([^"]*)")?\s*$` | Records `label → (target, title)`. Labels are case-insensitive. Applies to the whole file. |
+| 5 | List item | `^(\s*)([-*+])\s+(.*)$` | §2. Indent = width of group 1 in columns. |
+| 6 | Other | anything else | Prose. Ignored. A blank line does not end a list. |
 
 ## 2 List items
 
@@ -58,7 +57,7 @@ A planning item's own children may be planning items, property bullets or prose.
 |---|---|
 | `milestone` | planning item with a leading date |
 | `subproject` | planning item without leading date whose **entire title** is one link (§4.2) whose resolved target has no `#fragment` and whose path ends in `.md` (case-insensitive; query string allowed for URLs) |
-| `deliverable` | planning item without leading date whose **entire title** is one link whose target **has** a `#fragment` (the id of an interface item in another file) |
+| `deliverable` | planning item without leading date whose **entire title** is one link whose target **has** a `#fragment` (the id of a milestone in another file) |
 | `task` | any other planning item |
 | `heading` | §3 |
 
@@ -68,8 +67,8 @@ A planning item's own children may be planning items, property bullets or prose.
   project name; a suffix on the H1 is allowed and applies to the project.
 - Every other heading (any level, including later H1s) is a **heading node**. Its parent is the
   nearest preceding heading node of a lower level, else the project.
-- Heading text is parsed like an item title + suffix (§4): `## Phase 1 — Concept  2026-11 .. 2027-06`
-  has title `Phase 1 — Concept` and a declared range.
+- Headings carry **no dates**: they only group. A date, range or duration at the end of a heading
+  is ignored (use an item with children, `- [ ] Phase 1  2026-11 .. 2027-06`).
 - A heading node with no planning-item descendants is dropped after parsing (e.g. `## Risks`).
 
 ## 4 Title and suffix
@@ -99,7 +98,7 @@ Each atom remembers its start/end offset in the text, so the title can be cut ve
 | date | word that is a date expression (§5.1) |
 | range | either one word `D..D`, or three atoms `D` `..` `D`, where D are date expressions |
 | key | word matching `(?i)^([a-z][a-z0-9-]*):$` whose name is a known key (§4.4) |
-| link | inline link or reference link atom; a reference link must resolve via a definition (§1 #5), else it is not a link (it is a word-like text atom) |
+| link | inline link or reference link atom; a reference link must resolve via a definition (§1 #4), else it is not a link (it is a word-like text atom) |
 
 ### 4.3 Suffix extraction (right to left)
 
@@ -119,14 +118,14 @@ Let `A[0..n)` be the atoms and `end = n`. Repeat:
 The **title** is the text from the start of `A[0]` to the end of `A[end-1]`, verbatim. For a `subproject` or `deliverable` node (§2.3) the stored title is the link's text (`[Powertrain](…)` → `Powertrain`); the link itself is kept in the node's `link`.
 Suffix elements are stored in their original left-to-right order. Code atoms are never tokens.
 
-Examples (known keys: owner, after, by, approver, replaced-by):
+Examples (known keys: owner, after, by, done):
 
 | Text | Title | Suffix |
 |---|---|---|
 | `Fix issue: retry logic  2w` | `Fix issue: retry logic` | dur 2w |
 | `Test 12m cable harness  3d  owner: @jan` | `Test 12m cable harness` | dur 3d, owner @jan |
 | `Review #3 comments  1w  ^review` | `Review #3 comments` | dur 1w, id review |
-| `Tooling release  #public ^tr  approver: Marco Rossi <m@example.com>` | `Tooling release` | tag public, id tr, approver person |
+| `Tooling release  #private ^tr  owner: Marco Rossi <m@example.com>` | `Tooling release` | tag private, id tr, owner person |
 | `Seat concept  2027-Q1 .. 2027-Q2` | `Seat concept` | range |
 | `2w` | `2w` | (none — title may not be empty) |
 | `Ship it  after: ^a  after: ^b` | `Ship it` | after ^a, after ^b |
@@ -134,8 +133,8 @@ Examples (known keys: owner, after, by, approver, replaced-by):
 
 ### 4.4 Known keys
 
-Core: `owner`, `after`, `by`, `approver`, `replaced-by`, `done` (an exact date, §5.1; only meaningful on a done item). A profile (§7) may add more.
-Repeatable: `after`, `approver`. Repeating any other key on one node is an error
+Known keys: `owner`, `after`, `by`, `done` (an exact date, §5.1; only meaningful on a done item).
+Any other `word:` is text. Repeatable: `after`. Repeating any other key on one node is an error
 `E-SYNTAX` (the last value wins for tooling that continues).
 
 ### 4.5 Values
@@ -147,24 +146,22 @@ A value is exactly one of:
 | person | one or more word atoms followed by one email atom: `Marco Rossi <m@example.com>` |
 | link | one link atom |
 | range | a range |
-| word | one word atom (handles, dates, ids, `path.md#id`, free words) |
+| word | one word atom (`@name`, dates, ids, free words) |
 
 A key whose following atoms do not form a value is not a key (it stays in the title).
 
-Each core key also **type-checks** its value; a value of the wrong type means the key is not a
+Each key also **type-checks** its value; a value of the wrong type means the key is not a
 key (it stays in the title):
 
 | Key | Accepted values |
 |---|---|
-| `owner`, `approver` | person, or word matching `^@[A-Za-z0-9._-]+$` |
-| `after` | word that is an id (`^x`) or `path#id`/`path.md`; link |
-| `by` | date expression, range, id, `path#id`; link |
-| `replaced-by` | id |
+| `owner` | person, or any one word (`@jan` is plain text) |
+| `after` | word that is an id (`^x`) or a date expression |
+| `by` | date expression, range or id (`^x`) |
 | `done` | exact date |
-| profile keys | any value |
 
-So `by: Friday` and `owner: Jan Doe` stay in the title (a validator may warn about a
-key-like word in a title).
+So `by: Friday`, `owner: Jan Doe` and cross-file forms (`after: file.md#id`,
+`by: [x](y.md#z)`) stay in the title; `W-KEYLIKE` is reported when a known key's value does not fit.
 
 ## 5 Lexical forms
 
@@ -175,10 +172,8 @@ key-like word in a title).
 | exact | `^(\d{4})-(\d{2})-(\d{2})$` | that day (must be a real calendar date) |
 | month | `^(\d{4})-(\d{2})$` | first..last day of month |
 | quarter | `^(\d{4})-Q([1-4])$` | first..last day of quarter |
-| half | `^(\d{4})-H([12])$` | Jan 1..Jun 30 / Jul 1..Dec 31 |
-| week | `^(\d{4})-W(\d{2})$` | ISO 8601 week, Monday..Sunday (week must exist) |
 
-A string matching the shape but invalid (`2027-02-30`, `2027-13`, `2027-W54`) is a date atom
+A string matching the shape but invalid (`2027-02-30`, `2027-13`) is a date atom
 with error `E-DATE`. A range `A .. B` expands to start(A)..end(B); end before start is `E-DATE`.
 
 ### 5.2 Durations
@@ -190,7 +185,7 @@ start date and clamps the day to the target month's length (2027-01-31 + `1m` = 
 
 ### 5.3 Names
 
-Ids and tags: see §4.2. People: `@handle` (`^@[A-Za-z0-9._-]+$`) or `Name <email>`.
+Ids and tags: see §4.2. People: `Name <email>` or any text.
 
 ## 6 Project header
 
@@ -206,91 +201,28 @@ for core keys:
 
 | Key | Interpretation |
 |---|---|
-| `Owner` | one value (§4.5): person or handle |
-| `Stakeholders` | comma-separated list of persons/handles |
+| `Owner` | a person (`Name <email>`) or any text |
 | `Commitment` | date expression or range |
-| `State` | free text |
-| `ID` | free text, by convention `domain/path/name` |
 | `Done` | exact date: the project was delivered that day |
-| `Late` | date expression: the project's own statement that it ends after its Commitment (its end is used) |
-| `As-of` | exact date: freshness of the information |
-| `Plan` | one or more links (inline or reference), comma-separated: fuller plans for permitted readers |
-| `Parent` | one or more links, comma-separated: informational, never used for scheduling |
+
+Any other key (`Stakeholders`, ...) is kept in `header` but has no meaning in the core.
 
 If the first item does not match, there is no property header.
 
-### 6.2 YAML front matter
+There is no YAML front matter; the property list is the only header form.
 
-Accepted alternative. Only flat `key: value` and `key:` followed by `  - item` lists are
-required to be supported. Same keys as §6.1 (lowercase is conventional). If both a front matter
-and a property list exist, the property list wins per key.
+## 7 Interface and contracts
 
-## 7 Profile file
+There is no interface file and no contracts file. A project's interface is derived from its own
+file (FORMAT §8): header `Owner`, `Commitment`, `Done`, and the milestones not tagged
+`#private`. A contract state (FORMAT §9) is computed from the parent's `by:` and the child's
+file at read time. A **front file** (FORMAT §8.1) is an ordinary project file and uses no
+grammar beyond §1-§6.
 
-`.pmd/profile.md`, found in the project file's folder or the nearest ancestor folder. It is a
-projectmd-style markdown file. Recognised sections (by heading text, case-insensitive):
-
-- `## Keys` — list items `- name` (optionally `- name (repeatable)`) add known keys.
-- `## States` — list items are the allowed `State` values (informational).
-- `## People` — list items `- @handle: Name <email>` form the people registry.
-
-## 8 Lock file
-
-The lock of `NAME.md` is `NAME.lock` in the same folder (FORMAT §9). UTF-8, line based. The first
-line is the version comment `# projectmd lock 0.2`.
+## 8 Parse output (data model)
 
 ```text
-# projectmd lock 0.2
-<location>  key=value  key=value ...
-    <milestone-id>  <date-expression>  [done=<date>]
-```
-
-- An **entry line** starts in column 0: the location (relative path from the lock's folder, or
-  URL), then whitespace-separated `key=value` fields. Unknown fields are kept. Fields:
-  - `id`: the project's `ID`.
-  - `hash`: hex prefix of the SHA-256 of the child's **canonical interface text** (§8.1) without
-    its `As-of` line. Internal edits of the child do not change it.
-  - `commitment` (date expression or `A..B`), `start` (exact date: the Commitment start if it
-    is a range, else the earliest declared date in the interface), `seen` (exact date).
-  - `by`: the need-by date the link to this entry declares, if any (date expression).
-  - `late`: date; the entry's own `Late`, or its forecast end derived from the file and its lock
-    when later than its Commitment. A child entry with `late` counts as finishing at that date.
-  - `status`: contract state (FORMAT §9): `accepted`, `delivered`, `unknown`, `requested`,
-    `disputed`, `at-risk` or `agreed`. Only entries with `by` have one.
-  - `as-of`: exact date; the entry's `As-of`, kept as read.
-  - `done`: exact date; the entry's `Done`.
-- A **project contract** is the entry of the linked project, with `by=` and `status=`. A
-  **deliverable contract** is an entry line of its own whose location is
-  `<location>#<milestone-id>`, carrying only `by=` and `status=`, followed by one milestone
-  line with that milestone's date (FORMAT §9). The child project keeps its own entry.
-- The lock holds one entry per project directly linked from its own project (sub-project
-  links, deliverables and cross-file references). `pmd lock FILE` reads FILE and, for each
-  direct link, its interface: the linked file, or for a full plan the interface derived from
-  it and its own lock (`X.md` → `X.lock`; a missing one is not an error). Nothing deeper. An
-  unreadable direct link keeps its entry, with `status=unknown`.
-- **Milestone lines** are indented by 4 spaces: interface milestone id (without `^`), its
-  declared date, and optionally `done=DATE`; or `-> new-id` for a tombstone.
-- Entries are sorted by location; milestones by id.
-
-### 8.1 Interface file
-
-`pmd export FILE` writes the interface of FILE (FORMAT §8): a projectmd file that uses only
-this subset of the grammar, in canonical form:
-
-1. First line `<!-- projectmd interface 0.2 -->`, then the H1 with the project name.
-2. A header (§6.1) in this order, omitting keys with no value: `Owner`, `Commitment`, `State`,
-   `ID`, `Done`, `Late`, `As-of`, `Plan`.
-3. The interface items (FORMAT §8: milestones not tagged `#private`, plus items tagged `#public`, each at its declared end), in file order, as `- [c] DATE title  ^id  [done: DATE]`, without `#public`/`#private` tags.
-   A tombstone keeps its `replaced-by:`.
-4. Nothing else: no headings, tasks, prose or links other than `Plan`. Exporting an
-   interface returns it unchanged (except `As-of`).
-
-The canonical interface text used for `hash` is this file without the `As-of` line.
-
-## 9 Parse output (data model)
-
-```text
-Project  { path, title, id, owner, stakeholders[], commitment, state, done, late, as_of, plan[], parent[], header{k:v},
+Project  { path, title, owner, commitment, done, header{k:v},
            suffix (from H1), nodes[] (top level), refdefs{label:(target,title)}, diagnostics[] }
 Node     { kind (task|milestone|subproject|deliverable|heading), line, checkbox (none|open|done|cancelled),
            title, date (leading or suffix date), range, duration, tags[], id, done,
@@ -301,5 +233,6 @@ Diagnostic { severity (E|W), code, line, message }
 
 Diagnostic codes produced by the parser itself: `E-SYNTAX`, `E-DATE`, `E-DUP-ID` (an id
 defined twice in a file), `E-REF-LOCAL` (an `^id` value with no matching id in the file),
-`W-NO-OWNER`. Cross-file checks (`E-REF-PUBLIC`, `E-REF-MISSING`, `E-CYCLE`) need the graph
-loader; `E-CONFLICT` needs scheduling; both are outside the parser.
+`W-NO-OWNER`, `W-KEYLIKE`. Cross-file checks (`E-REF-PUBLIC`, `E-REF-MISSING`, `E-CYCLE`) and contract states
+(`W-DISPUTED`, `W-UNKNOWN`, `I-REQUESTED`) need the graph loader; `E-CONFLICT` needs
+scheduling. All of these are outside the parser.

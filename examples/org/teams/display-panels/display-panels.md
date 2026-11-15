@@ -1,22 +1,13 @@
 # Display panels
 
 - Owner: Tomas Brandt <tomas.brandt@example.com>
-- Parent: [Displays](../../units/hardware/displays/displays.md)
 - Commitment: 2027-11-30
-- State: in-development
-- ID: pis.example.com/teams/display-panels
 
-Sunlight-readable e-paper and LCD panels, sourced from panel makers.
+Front file: the promise given to the parent. The breakdown is in the private plan
+`private/display-panels-plan.md`, readable only inside this store.
 
-## Work
+- [ ] 2027-05-31 Pilot panels delivered  after: ^plan-pilot-panels  ^pilot-panels
+- [ ] 2027-11-30 Series panels available  after: ^plan-series-panels  ^series-panels
 
-- [x] 2026-11-06 Panel supplier shortlist agreed  #private  done: 2026-11-06  ^shortlist
-- [ ] Sample evaluation (brightness, temperature)  10w  after: ^shortlist  ^evaluation
-- [ ] Series panel qualification  16w  after: ^evaluation  ^qualification
-- [ ] 2027-05-31 Pilot panels delivered  ^pilot-panels
-- [ ] Production ramp-up with panel supplier  20w  after: ^qualification  ^ramp-up
-- [ ] 2027-11-30 Series panels available  ^series-panels
-
-## Notes
-
-- Ramp-up is forecast to end 2027-09-24, more than two months inside the Commitment.
+- [ ] [Pilot panels delivered](private/display-panels-plan.md#pilot-panels)  ^plan-pilot-panels
+- [ ] [Series panels available](private/display-panels-plan.md#series-panels)  ^plan-series-panels

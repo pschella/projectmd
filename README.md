@@ -16,7 +16,7 @@ adds just enough structure to answer "when?" and "what depends on what?":
 
 ## Work
 - [x] 2026-10-31 Cell chemistry selected  ^chemistry
-- [ ] Module & pack design  12w  after: ^chemistry  owner: @priya
+- [ ] Module & pack design  12w  after: ^chemistry  owner: Priya
 - [ ] 2027-09-30 B-samples available  ^b-samples
 - [ ] [Cell module](cell-module.md)  by: 2027-06-30
 ```
@@ -27,42 +27,31 @@ adds just enough structure to answer "when?" and "what depends on what?":
   (`12w`) and dependencies (`after:`). A parent states what it needs (`by:`) and a child states
   what it promises (`Commitment:`).
 - **It scales by locality.** Only declared dates cross file boundaries. Any view reads one file
-  plus its lock file, whether the graph has 10 projects or 100,000.
+  plus its direct links, whether the graph has 10 projects or 100,000.
 
 ## Grow it gradually, top-down or bottom-up
 
-A plan does not have to start big. Each step below is optional, and each keeps the files you
-already have valid:
+A plan does not have to start big. Each step is optional, and each keeps the files you already have valid:
 
 1. **A todo list.** `- [ ] Order cells` is already a project.
-2. **Add time** where it helps: a date, a duration, an `after:`. Tools now forecast and flag
-   conflicts.
-3. **Split** a task that grew into its own file and link it. That file is now a sub-project.
-4. **Promise and expose.** Give the file a `Commitment:`. Its milestones are visible to whoever
-   links it (`#private` hides one); tasks and sub-projects stay private unless tagged `#public`.
-   That is its interface.
-5. **Distribute.** Sub-projects can live anywhere a link can point: another folder, repository,
-   server or a supplier's portal. Each is kept by its own team, with its own tools.
+2. **Add time** where it helps: a date, a duration or an `after:`. Tools forecast and flag conflicts.
+3. **Split** an item that grew into its own file: replace its title with a link. Nothing else on the line changes.
+4. **Promise.** Give the file a `Commitment:`. Its milestones are what parents see; `#private` hides one.
+5. **Distribute.** A sub-project can live anywhere a link can point, kept by its own team with its own tools.
 
-You can grow **top-down**, where a programme lead writes a skeleton and links placeholder files
-that teams fill in, or **bottom-up**, where existing team plans are linked into a new parent.
-Both meet in the same graph. No file is special: every project is the top of its own view, and
-any sub-project can be moved elsewhere and stand on its own.
+Grow **top-down** (a lead writes the skeleton and links placeholder files) or **bottom-up** (existing
+team plans are linked into a new parent). Both meet in the same graph, and no file is special.
 
-**Contracts cross boundaries, nothing else.** Between a parent and a child the contract is the
-parent's need-by date (`by:`) and the child's promise (`Commitment:` and milestones). A
-tool-written lock file next to each project (`aurora.md` → `aurora.lock`) records the contracts
-with its direct links and whether each child is running late. Like export data in a Go build,
-that already summarizes everything further down. A slip deep in the graph surfaces one level up
-at a time, and reading or refreshing a plan never looks further than its direct links, however
-large and spread out the graph is. See [docs/FORMAT.md](docs/FORMAT.md) §9.
+**Contracts cross boundaries, nothing else.** A parent states what it needs (`by:`), a child states
+what it promises (`Commitment:` and milestones), and the contract state (requested, agreed, disputed,
+delivered) is computed live from the two files. Reading a plan never looks further than its direct
+links. A plan that must stay private gets a thin front file. See [docs/FORMAT.md](docs/FORMAT.md) §8-§9.
 
 ## Tools
 
-The format is the product. The tools in this repository are a first reference implementation:
-a parser and validator (Rust, also compiled to WebAssembly) and a web viewer that draws a
-project graph as an expandable Gantt chart. Anyone can write others: the files are plain
-markdown and the grammar is specified.
+The format is the product. The tools here are a first reference implementation: a parser and
+validator in Rust (also built to WebAssembly) and a web viewer that draws a project graph as an
+expandable Gantt chart. Anyone can write others: the files are plain markdown and the grammar is specified.
 
 ![The viewer showing the example car programme as a nested Gantt chart](docs/img/gantt.png)
 
@@ -72,13 +61,13 @@ markdown and the grammar is specified.
 
 | Document | For |
 |---|---|
-| [docs/DESIGN.md](docs/DESIGN.md) | How it works and why: requirements, concepts, files, linking, storage, checks. Start here to understand or review the design. |
 | [docs/CHEATSHEET.md](docs/CHEATSHEET.md) | The whole format on one page. Start here, or hand it to an AI agent. |
-| [docs/FORMAT.md](docs/FORMAT.md) | Format reference: the node model, scheduling, interfaces, the lock file, validation. |
+| [docs/FORMAT.md](docs/FORMAT.md) | Format reference: the node model, scheduling, interfaces and front files, contracts, validation. |
 | [docs/GRAMMAR.md](docs/GRAMMAR.md) | The precise grammar. It decides how text is parsed. |
+| [docs/DESIGN.md](docs/DESIGN.md) | Why it is designed this way: requirements, concepts, checks. |
 | [docs/VIEWER-CONTRACT.md](docs/VIEWER-CONTRACT.md) | How the reference viewer calls the parser (WebAssembly interface). |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Parser scaling measurements. |
-| [examples/](examples/README.md) | A worked example: the plan for a fictional electric car, 20 files up to 5 levels deep. |
+| [examples/](examples/README.md) | Worked examples: a fictional electric car (10 project files, five levels deep) and a company split across three stores (`examples/org/`). |
 
 ## Quick start
 
@@ -88,19 +77,18 @@ markdown and the grammar is specified.
 python3 -m http.server 8642
 ```
 
-Open http://localhost:8642/viewer/?root=/examples/car/aurora.md. Click the chevron to expand a sub-project
-(it loads lazily), select any row to see everything known about it, and open its file in the
-built-in markdown view. Ctrl/Cmd-click or double-click a sub-project to make it the top level.
+Open http://localhost:8642/viewer/?root=/examples/car/aurora.md. Click the chevron to expand a
+sub-project (loaded on demand) and select a row to see its details. Ctrl/Cmd-click or double-click
+a sub-project to make it the top level.
 
 **Command-line tool** (needs Rust):
 
 ```bash
 cd parser && cargo build --release
-./target/release/pmd check ../examples/car/aurora.md      # validate one level, with fix hints (--deep, --json)
-./target/release/pmd schedule ../examples/car/aurora.md   # forecast dates and conflicts
-./target/release/pmd tree ../examples/car/aurora.md       # top-level outline
-./target/release/pmd lock ../examples/car/aurora.md       # refresh aurora.lock
-./target/release/pmd fmt ../examples/car/aurora.md        # canonical form (--ids adds ^ids)
+./target/release/pmd check ../examples/car/aurora.md          # validate; --deep walks all linked files, --strict fails on warnings
+./target/release/pmd schedule ../examples/car/aurora.md       # forecast dates and conflicts
+./target/release/pmd tree ../examples/car/aurora.md --depth 2 # outline with contract states
+./target/release/pmd fmt ../examples/car/aurora.md --check    # canonical form? (without --check, rewrites the file)
 ```
 
 Rebuild the viewer's WebAssembly module with `parser/build-wasm.sh`.

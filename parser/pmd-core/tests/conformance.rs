@@ -10,7 +10,7 @@ fn conf(name: &str) -> Option<String> {
 }
 
 fn split_suffix(s: &str) -> Vec<String> {
-    let keys = ["duration", "id", "tag", "date", "range", "owner", "after", "by", "approver", "replaced-by", "ticket"];
+    let keys = ["duration", "id", "tag", "date", "range", "owner", "after", "by", "done", "replaced-by", "ticket"];
     let mut out: Vec<String> = Vec::new();
     for tok in s.split_whitespace() {
         let starts = tok.split_once('=').map(|(k, _)| keys.contains(&k)).unwrap_or(false);
@@ -28,6 +28,8 @@ fn split_suffix(s: &str) -> Vec<String> {
 
 /// Inputs where items.txt disagrees with the (amended) GRAMMAR.md; GRAMMAR wins.
 const KNOWN: &[&str] = &[
+    // a title that is one link with a #fragment is a deliverable (GRAMMAR §2.3, 0.2)
+    "- [ ] [Spec](spec.md#part)  2w",
     // leading ranges (GRAMMAR §2.2 step 2 amended): task with declared range
     "- [ ] 2026-01 .. 2026-03 Kickoff",
     "- [ ] 2026-01..2026-03 Kickoff",
@@ -38,7 +40,6 @@ const KNOWN: &[&str] = &[
     // E-SYNTAX on a repeated non-repeatable key; last value wins (§4.4)
     "- [ ] Ship  owner: @jan  owner: @piet",
     // invalid dates: the atom is consumed with E-DATE, but no expanded date can be stored
-    "- [ ] Fix bug  2027-W53",
     "- [ ] Fix bug  2027-13",
     "- [ ] 2027-02-30 Bad date",
     // a property bullet must hold exactly one value of the key's type (§2.2, §4.5)

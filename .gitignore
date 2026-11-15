@@ -13,3 +13,4 @@ dev/
 
 # Local benchmark links
 .bench*
+/pmdgen

@@ -16,9 +16,9 @@ fn suffix_examples_section_4_3() {
         ("Test 12m cable harness  3d  owner: @jan", "Test 12m cable harness", &["duration=3d", "owner=@jan"]),
         ("Review #3 comments  1w  ^review", "Review #3 comments", &["duration=1w", "id=review"]),
         (
-            "Tooling release  #public ^tr  approver: Marco Rossi <m@example.com>",
+            "Tooling release  #public ^tr  owner: Marco Rossi <m@example.com>",
             "Tooling release",
-            &["tag=public", "id=tr", "approver=Marco Rossi <m@example.com>"],
+            &["tag=public", "id=tr", "owner=Marco Rossi <m@example.com>"],
         ),
         ("Seat concept  2027-Q1 .. 2027-Q2", "Seat concept", &["range=2027-Q1..2027-Q2"]),
         ("2w", "2w", &[]),
@@ -55,11 +55,6 @@ fn key_cannot_be_first_atom() {
 fn unknown_key_stays_in_title() {
     let n = item("- [ ] Do thing  ticket: PACK-1").unwrap();
     assert_eq!(n.title, "Do thing  ticket: PACK-1");
-    let mut o = Options::default();
-    o.extra_keys.push("ticket".into());
-    let p = parse("t.md", "# T\n\n- [ ] Do thing  ticket: PACK-1\n", &o);
-    assert_eq!(p.nodes[0].title, "Do thing");
-    assert_eq!(p.nodes[0].keys["ticket"][0].text, "PACK-1");
 }
 
 #[test]
@@ -68,13 +63,13 @@ fn key_values_are_type_checked() {
     assert_eq!(n.title, "Plan  by: Friday");
     let n = item("- [ ] Plan  owner: Jan Doe").unwrap();
     assert_eq!(n.title, "Plan  owner: Jan Doe");
-    let n = item("- [ ] Plan  replaced-by: foo").unwrap();
-    assert_eq!(n.title, "Plan  replaced-by: foo");
+    let n = item("- [ ] Plan  after: pack.md#x").unwrap();
+    assert_eq!(n.title, "Plan  after: pack.md#x");
     let n = item("- [ ] Plan  after: 2w").unwrap();
     assert_eq!(n.title, "Plan  after: 2w".replace("  after: 2w", "  after:")); // 2w is a duration, after: stays
-    let n = item("- [ ] Plan  owner: @jan  by: 2027-Q2  after: pack.md#x  replaced-by: ^n").unwrap();
+    let n = item("- [ ] Plan  owner: @jan  by: 2027-Q2  after: ^n").unwrap();
     assert_eq!(n.title, "Plan");
-    assert_eq!(n.keys.len(), 4);
+    assert_eq!(n.keys.len(), 3);
 }
 
 #[test]
@@ -84,11 +79,6 @@ fn values_person_link_range_word() {
     assert_eq!(v.kind, ValueKind::Person);
     assert_eq!(v.name.as_deref(), Some("Priya Nair"));
     assert_eq!(v.email.as_deref(), Some("p@example.com"));
-    let n = item("- [ ] X  after: [Pack](pack.md#v \"t\")").unwrap();
-    let v = &n.keys["after"][0];
-    assert_eq!(v.kind, ValueKind::Link);
-    assert_eq!(v.target.as_deref(), Some("pack.md#v"));
-    assert_eq!(v.title.as_deref(), Some("t"));
     let n = item("- [ ] X  by: 2027-Q1 .. 2027-Q2").unwrap();
     assert_eq!(n.keys["by"][0].kind, ValueKind::Range);
     let n = item("- [ ] X  by: 2027-Q1..2027-Q2").unwrap();
@@ -128,10 +118,9 @@ fn reference_style_links() {
     assert_eq!(p.refdefs["pack"].title.as_deref(), Some("The pack"));
     assert_eq!(p.nodes[0].kind, NodeKind::Subproject);
     assert_eq!(p.nodes[0].link.as_ref().unwrap().target, "https://x.example/inv.md");
-    let v = &p.nodes[1].keys["after"][0];
-    assert_eq!(v.kind, ValueKind::Link);
-    assert_eq!(v.target.as_deref(), Some("pack.md#v"));
-    // unresolved reference is not a link: type check for `after` fails, stays in title
+    // D47: a link is no `after:` value; it stays in the title
+    assert_eq!(p.nodes[1].title, "X  after: [Pack][]");
+    // unresolved reference is not a link either
     assert_eq!(p.nodes[2].title, "Y  after: [Nope][zz]");
     assert_eq!(p.nodes[2].kind, NodeKind::Task);
 }
@@ -173,7 +162,7 @@ fn leading_date_and_kinds() {
     assert_eq!(n.kind, NodeKind::Task);
     assert_eq!(n.date.as_ref().unwrap().text, "2027-06");
     // forms
-    for d in ["2027-06", "2027-Q3", "2027-H2", "2027-W14"] {
+    for d in ["2027-06", "2027-Q3"] {
         let n = item(&format!("- [ ] {} Beta", d)).unwrap();
         assert_eq!(n.kind, NodeKind::Milestone, "{}", d);
     }
@@ -198,7 +187,10 @@ fn subproject_detection() {
     assert_eq!(k("- [ ] [Pwr](powertrain/p.md)"), NodeKind::Subproject);
     assert_eq!(k("- [ ] [Pwr](powertrain/P.MD)  by: 2027-01"), NodeKind::Subproject);
     assert_eq!(k("- [ ] [Pwr](https://x.example/p.md?v=2)"), NodeKind::Subproject);
-    assert_eq!(k("- [ ] [Pwr](p.md#frag)"), NodeKind::Task);
+    assert_eq!(k("- [ ] [Pwr](p.md#frag)"), NodeKind::Deliverable);
+    assert_eq!(k("- [ ] [Pwr](https://x.example/p.md?v=2#frag)"), NodeKind::Deliverable);
+    assert_eq!(k("- [ ] [Pwr](#frag)"), NodeKind::Task);
+    assert_eq!(k("- [ ] [Pwr](p.txt#frag)"), NodeKind::Task);
     assert_eq!(k("- [ ] [Pwr](p.txt)"), NodeKind::Task);
     assert_eq!(k("- [ ] See [Pwr](p.md)"), NodeKind::Task);
     assert_eq!(k("- 2027-01 [Pwr](p.md)"), NodeKind::Milestone);
@@ -228,29 +220,9 @@ fn dates_all_forms() {
     assert_eq!(d("2027-Q2"), "2027-04-01..2027-06-30");
     assert_eq!(d("2027-Q3"), "2027-07-01..2027-09-30");
     assert_eq!(d("2027-Q4"), "2027-10-01..2027-12-31");
-    assert_eq!(d("2027-H1"), "2027-01-01..2027-06-30");
-    assert_eq!(d("2027-H2"), "2027-07-01..2027-12-31");
-    for not in ["2027-Q5", "2027-Q0", "2027-H3", "2027-6-30", "27-06-30", "2027/06/30", "abc", "2027-W5", "2027-06-3", "2027-0630"] {
+    for not in ["2027-Q5", "2027-Q0", "2027-6-30", "27-06-30", "2027/06/30", "abc", "2027-06-3", "2027-0630"] {
         assert_eq!(d(not), "not", "{}", not);
     }
-}
-
-#[test]
-fn iso_weeks() {
-    assert_eq!(d("2027-W01"), "2027-01-04..2027-01-10");
-    assert_eq!(d("2027-W14"), "2027-04-05..2027-04-11");
-    assert_eq!(d("2027-W52"), "2027-12-27..2028-01-02");
-    assert_eq!(d("2027-W53"), "error");
-    assert_eq!(d("2027-W00"), "error");
-    assert_eq!(d("2027-W54"), "error");
-    assert_eq!(d("2026-W01"), "2025-12-29..2026-01-04");
-    assert_eq!(d("2026-W53"), "2026-12-28..2027-01-03");
-    assert_eq!(d("2025-W01"), "2024-12-30..2025-01-05");
-    assert_eq!(d("2024-W01"), "2024-01-01..2024-01-07");
-    assert_eq!(d("2021-W01"), "2021-01-04..2021-01-10");
-    assert_eq!(d("2020-W53"), "2020-12-28..2021-01-03");
-    assert_eq!(d("2021-W53"), "error");
-    assert_eq!(d("2015-W53"), "2015-12-28..2016-01-03");
 }
 
 #[test]
@@ -263,7 +235,7 @@ fn civil_days_roundtrip() {
 
 #[test]
 fn invalid_dates_produce_e_date() {
-    let p = parse_str("# T\n\n- [ ] Foo  2027-02-30\n- [ ] 2027-13 Bar\n- [ ] Baz  2027-W54 .. 2027-W55\n- [ ] Q  2027-Q2 .. 2027-Q1\n- [ ] R  by: 2027-02-30\n");
+    let p = parse_str("# T\n\n- [ ] Foo  2027-02-30\n- [ ] 2027-13 Bar\n- [ ] Baz  2027-13 .. 2027-14\n- [ ] Q  2027-Q2 .. 2027-Q1\n- [ ] R  by: 2027-02-30\n");
     let n = p.diagnostics.iter().filter(|d| d.code == "E-DATE").count();
     assert_eq!(n, 5, "{:?}", p.diagnostics);
     assert_eq!(p.nodes[0].title, "Foo");
@@ -274,10 +246,10 @@ fn invalid_dates_produce_e_date() {
 
 #[test]
 fn range_expands_start_of_a_end_of_b() {
-    let n = item("- [ ] Seat  2027-Q1 .. 2027-W20").unwrap();
+    let n = item("- [ ] Seat  2027-Q1 .. 2027-05").unwrap();
     let r = n.range.unwrap();
     assert_eq!(r.start.to_string(), "2027-01-01");
-    assert_eq!(r.end.to_string(), "2027-05-23");
+    assert_eq!(r.end.to_string(), "2027-05-31");
     assert!(r.range);
 }
 
@@ -307,11 +279,11 @@ fn tags_and_ids() {
 
 #[test]
 fn property_bullets() {
-    let src = "# T\n\n## Work\n\n- [ ] Task\n  - owner: @jan\n  - approver: @a\n  - approver: Marco <m@x.org>\n  - Notes: not a key\n  - after: ^other\n- [ ] Other  ^other\n";
+    let src = "# T\n\n## Work\n\n- [ ] Task\n  - owner: @jan\n  - done: 2027-01-01\n  - Notes: not a key\n  - after: ^other\n- [ ] Other  ^other\n";
     let p = parse_str(src);
     let t = &p.nodes[0].children[0];
     assert_eq!(t.keys["owner"][0].text, "@jan");
-    assert_eq!(t.keys["approver"].len(), 2);
+    assert_eq!(t.keys["done"].len(), 1);
     assert_eq!(t.keys["after"][0].text, "^other");
     assert!(t.children.is_empty());
     assert!(!codes(&p).contains(&"E-REF-LOCAL"));
@@ -338,15 +310,14 @@ fn repeated_non_repeatable_key_is_error() {
 
 #[test]
 fn header_property_list() {
-    let src = "# Aurora  #big\n\n- Owner: Sanne Visser <s@x.org>\n- Stakeholders: Marco <m@x.org>, @board\n- Commitment: 2028-11-30\n- State: concept\n- ID: cars.example.com/aurora\n- Start date: 2026-01\n\nProse.\n\n- [ ] Task\n";
+    let src = "# Aurora  #big\n\n- Owner: Sanne Visser <s@example.org>\n- Stakeholders: Marco <m@example.org>, @board\n- Commitment: 2028-11-30\n- Phase: concept\n- Start date: 2026-01\n\nProse.\n\n- [ ] Task\n";
     let p = parse_str(src);
     assert_eq!(p.title, "Aurora");
     assert_eq!(p.suffix.tags, ["big"]);
     assert_eq!(p.owner.as_ref().unwrap().name.as_deref(), Some("Sanne Visser"));
-    assert_eq!(p.stakeholders.len(), 2);
+    assert_eq!(p.header["stakeholders"], "Marco <m@example.org>, @board");
     assert_eq!(p.commitment.as_ref().unwrap().text, "2028-11-30");
-    assert_eq!(p.state.as_deref(), Some("concept"));
-    assert_eq!(p.id.as_deref(), Some("cars.example.com/aurora"));
+    assert_eq!(p.header["phase"], "concept");
     assert_eq!(p.header["start date"], "2026-01");
     assert_eq!(p.nodes.len(), 1);
     assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
@@ -354,7 +325,7 @@ fn header_property_list() {
 
 #[test]
 fn header_followed_directly_by_todo_list() {
-    let src = "# T\n\n- Owner: @jan\n- State: planned\n- [ ] First task\n- [ ] Second\n";
+    let src = "# T\n\n- Owner: @jan\n- Phase: planned\n- [ ] First task\n- [ ] Second\n";
     let p = parse_str(src);
     assert_eq!(p.header.len(), 2);
     assert_eq!(p.nodes.len(), 2);
@@ -363,7 +334,7 @@ fn header_followed_directly_by_todo_list() {
 
 #[test]
 fn header_ends_at_first_non_matching_item() {
-    let src = "# T\n\n- Owner: @jan\n- 2027-01-01 A milestone\n- State: late\n";
+    let src = "# T\n\n- Owner: @jan\n- 2027-01-01 A milestone\n- Phase: late\n";
     let p = parse_str(src);
     assert_eq!(p.header.len(), 1);
     assert_eq!(p.nodes.len(), 1);
@@ -371,7 +342,7 @@ fn header_ends_at_first_non_matching_item() {
 
 #[test]
 fn no_header_when_first_item_does_not_match() {
-    let p = parse_str("# T\n\n- [ ] task\n- State: x\n");
+    let p = parse_str("# T\n\n- [ ] task\n- Phase: x\n");
     assert!(p.header.is_empty());
     assert!(p.owner.is_none());
     assert!(codes(&p).contains(&"W-NO-OWNER"));
@@ -380,41 +351,21 @@ fn no_header_when_first_item_does_not_match() {
 
 #[test]
 fn no_header_after_prose() {
-    let p = parse_str("# T\n\nSome prose.\n\n- State: x\n");
+    let p = parse_str("# T\n\nSome prose.\n\n- Phase: x\n");
     assert!(p.header.is_empty());
 }
 
 #[test]
 fn header_not_applied_to_later_headings() {
-    let p = parse_str("# T\n\n## Sec\n\n- State: x\n- [ ] A\n");
+    let p = parse_str("# T\n\n## Sec\n\n- Phase: x\n- [ ] A\n");
     assert!(p.header.is_empty());
 }
 
 #[test]
-fn yaml_front_matter() {
-    let src = "---\nowner: Sanne <s@x.org>\nstakeholders:\n  - Marco <m@x.org>\n  - \"@product-board\"\ncommitment: 2028-11-30\nstate: concept\nid: a/b\n---\n\n# Aurora\n\n- [ ] 2027-01-01 M\n";
-    let p = parse_str(src);
+fn front_matter_is_not_supported() {
+    let p = parse_str("---\nowner: Sanne <s@example.org>\n---\n\n# Aurora\n\n- [ ] 2027-01-01 M\n");
+    assert!(p.owner.is_none());
     assert_eq!(p.title, "Aurora");
-    assert_eq!(p.owner.as_ref().unwrap().text, "Sanne <s@x.org>");
-    assert_eq!(p.stakeholders.len(), 2);
-    assert_eq!(p.stakeholders[1].text, "@product-board");
-    assert_eq!(p.id.as_deref(), Some("a/b"));
-    assert_eq!(p.nodes[0].line, 13);
-    assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
-}
-
-#[test]
-fn property_list_wins_over_front_matter() {
-    let src = "---\nowner: @fm\nstate: fm\n...\n# T\n\n- Owner: @list\n";
-    let p = parse_str(src);
-    assert_eq!(p.owner.unwrap().text, "@list");
-    assert_eq!(p.state.as_deref(), Some("fm"));
-}
-
-#[test]
-fn unterminated_front_matter() {
-    let p = parse_str("---\nowner: x\n\n# T\n");
-    assert!(codes(&p).contains(&"E-SYNTAX"));
 }
 
 // ---- fences, comments, headings -------------------------------------------------------------
@@ -433,7 +384,7 @@ fn headings_nesting_and_dropping() {
     let p = parse_str(src);
     let top: Vec<&str> = p.nodes.iter().map(|n| n.title.as_str()).collect();
     assert_eq!(top, ["A", "B", "Second h1"]);
-    assert_eq!(p.nodes[0].range.as_ref().unwrap().text, "2026-11..2027-06");
+    assert!(p.nodes[0].range.is_none(), "headings carry no dates");
     assert_eq!(p.nodes[0].children[0].title, "A1");
     assert_eq!(p.nodes[0].children[0].children[0].title, "x");
 }
@@ -504,28 +455,7 @@ fn empty_and_weird_input_never_panics() {
     }
 }
 
-// ---- profile ------------------------------------------------------------------------------------
-
-#[test]
-fn profile_keys_states_people() {
-    let src = "# Profile\n\n## Keys\n\n- ticket\n- `blocked-by:` (repeatable) the thing\n\n## States\n\n- planned\n- `concept` — idea\n\n## People\n\n- @jan: Jan de Boer <jan@x.org>\n- @sanne → Sanne Visser <s@x.org>\n";
-    let o = parse_profile(src);
-    assert_eq!(o.extra_keys, ["ticket", "blocked-by"]);
-    assert_eq!(o.repeatable, ["blocked-by"]);
-    assert_eq!(o.states, ["planned", "concept"]);
-    assert_eq!(o.people["@jan"].name, "Jan de Boer");
-    assert_eq!(o.people["@sanne"].email.as_deref(), Some("s@x.org"));
-    let p = parse("t.md", "# T\n\n- [ ] a  blocked-by: ^x  blocked-by: ^y  ^x\n", &o);
-    assert_eq!(p.nodes[0].keys["blocked-by"].len(), 2);
-}
-
-#[test]
-fn profile_candidates_walk_up() {
-    assert_eq!(profile_candidates("a/b/c.md"), ["a/b/.pmd/profile.md", "a/.pmd/profile.md", ".pmd/profile.md"]);
-    assert_eq!(profile_candidates("c.md"), [".pmd/profile.md"]);
-}
-
-// ---- paths, graph, lock ------------------------------------------------------------------------
+// ---- paths and graph ------------------------------------------------------------------------
 
 #[test]
 fn path_resolution() {
@@ -542,7 +472,7 @@ fn path_resolution() {
 fn graph_of(files: &[(&str, &str)]) -> Graph {
     let mut g = Graph::new(files[0].0);
     for (p, s) in files {
-        g.add(parse(p, s, &Options::default()));
+        g.add(parse(p, s));
     }
     g
 }
@@ -552,9 +482,9 @@ fn graph_check_missing_public_and_ok() {
     let g = graph_of(&[
         (
             "r/root.md",
-            "# Root\n\n- Owner: @a\n\n- [ ] [Sub](sub/sub.md)\n- [ ] [Gone](gone/gone.md)\n- [ ] X  after: [ok](sub/sub.md#pub)\n- [ ] Y  after: [np](sub/sub.md#priv)\n- [ ] Z  after: [nx](sub/sub.md#nothing)\n- [ ] W  after: sub/sub.md#pub\n- [ ] R  after: [r](https://h.example/x.md#a)\n",
+            "# Root\n\n- Owner: @a\n\n- [ ] [Sub](sub/sub.md)\n- [ ] [Gone](gone/gone.md)\n- [ ] [ok](sub/sub.md#pub)\n- [ ] [np](sub/sub.md#priv)\n- [ ] [nx](sub/sub.md#nothing)\n- [ ] [r](https://h.example/x.md#a)\n",
         ),
-        ("r/sub/sub.md", "# Sub\n\n- Owner: @a\n\n- [ ] 2027-01-01 P  #public ^pub\n- [ ] 2027-01-01 Q  ^priv\n"),
+        ("r/sub/sub.md", "# Sub\n\n- Owner: @a\n\n- [ ] 2027-01-01 P  ^pub\n- [ ] 2027-01-01 Q  #private  ^priv\n"),
     ]);
     let d = g.check();
     let got: Vec<(&str, u32, &str)> = d.iter().map(|x| (x.code, x.line, x.path.as_str())).collect();
@@ -592,30 +522,8 @@ fn graph_no_false_cycle_on_diamond() {
 }
 
 #[test]
-fn lock_roundtrip_and_build() {
-    let src = "# comment\n# more\nb/b.md  id=x/b  hash=abcd  commitment=2027-Q1  seen=2026-11-14  extra=1\n    m2  2027-02-01\n    m1  -> m3\na/a.md  hash=ff\nhttps://h.example/p.md  seen=2026-11-14\n";
-    let l = Lock::parse(src);
-    assert_eq!(l.entries.len(), 3);
-    assert_eq!(l.entries[0].field("extra"), Some("1"));
-    assert_eq!(l.entries[0].milestones.len(), 2);
-    let out = l.to_string();
-    assert_eq!(
-        out,
-        "# comment\n# more\na/a.md  hash=ff\nb/b.md  id=x/b  hash=abcd  commitment=2027-Q1  seen=2026-11-14  extra=1\n    m1  -> m3\n    m2  2027-02-01\nhttps://h.example/p.md  seen=2026-11-14\n"
-    );
-    assert_eq!(Lock::parse(&out).to_string(), out);
-}
-
-#[test]
-fn sha256_known_vectors() {
-    assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-    assert_eq!(hash_prefix(b"abc"), "ba7816bf8f01cfea");
-}
-
-#[test]
 fn json_is_lowercase() {
-    let p = parse_str("# T\n\n- [ ] 2027-01-01 M  #public ^m\n");
+    let p = parse_str("# T\n\n- [ ] 2027-01-01 M  ^m\n");
     let j = serde_json::to_string(&p).unwrap();
     assert!(j.contains("\"nodes\"") && j.contains("\"kind\":\"milestone\"") && j.contains("\"checkbox\":\"open\""));
 }

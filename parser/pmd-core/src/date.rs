@@ -96,27 +96,6 @@ pub fn days_in_month(y: i32, m: u8) -> u8 {
     }
 }
 
-/// Weekday of a day number, Monday = 0.
-fn weekday(days: i64) -> i64 {
-    (days + 3).rem_euclid(7)
-}
-
-/// Number of ISO weeks (52 or 53) in a year.
-pub fn iso_weeks_in_year(y: i32) -> u32 {
-    let wd = weekday(days_from_civil(y as i64, 1, 1));
-    if wd == 3 || (is_leap(y) && wd == 2) {
-        53
-    } else {
-        52
-    }
-}
-
-/// Monday of ISO week 1.
-fn iso_week1_monday(y: i32) -> i64 {
-    let jan4 = days_from_civil(y as i64, 1, 4);
-    jan4 - weekday(jan4)
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DateParse {
     /// Does not have the shape of a date expression.
@@ -142,7 +121,7 @@ fn dig(b: &[u8]) -> Option<u32> {
 /// Parse one date expression word (GRAMMAR §5.1).
 pub fn parse_date(s: &str) -> DateParse {
     let b = s.as_bytes();
-    if b.len() < 7 || b.len() > 10 || b[4] != b'-' {
+    if b.len() != 7 && b.len() != 10 || b[4] != b'-' {
         return DateParse::NotDate;
     }
     let y = match dig(&b[0..4]) {
@@ -174,11 +153,6 @@ pub fn parse_date(s: &str) -> DateParse {
                 }
                 _ => DateParse::NotDate,
             },
-            b'H' => match b[6] {
-                b'1' => DateParse::Ok(Civil::new(y, 1, 1), Civil::new(y, 6, 30)),
-                b'2' => DateParse::Ok(Civil::new(y, 7, 1), Civil::new(y, 12, 31)),
-                _ => DateParse::NotDate,
-            },
             _ => match dig(&b[5..7]) {
                 Some(m) => {
                     if m < 1 || m > 12 {
@@ -193,20 +167,6 @@ pub fn parse_date(s: &str) -> DateParse {
                 None => DateParse::NotDate,
             },
         },
-        8 => {
-            if b[5] != b'W' {
-                return DateParse::NotDate;
-            }
-            let w = match dig(&b[6..8]) {
-                Some(w) => w,
-                None => return DateParse::NotDate,
-            };
-            if w < 1 || w > iso_weeks_in_year(y) {
-                return DateParse::Invalid;
-            }
-            let start = iso_week1_monday(y) + (w as i64 - 1) * 7;
-            DateParse::Ok(Civil::from_days(start), Civil::from_days(start + 6))
-        }
         _ => DateParse::NotDate,
     }
 }

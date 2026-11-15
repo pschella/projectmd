@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 pub enum Severity {
     E,
     W,
+    I,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -32,7 +33,11 @@ impl Diagnostic {
 
 impl std::fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = if self.severity == Severity::E { "E" } else { "W" };
+        let s = match self.severity {
+            Severity::E => "E",
+            Severity::W => "W",
+            Severity::I => "I",
+        };
         write!(f, "{}:{}: {} {} {}", self.path, self.line, s, self.code, self.message)
     }
 }
@@ -85,6 +90,7 @@ pub enum NodeKind {
     Task,
     Milestone,
     Subproject,
+    Deliverable,
     Heading,
 }
 
@@ -173,6 +179,14 @@ impl Node {
     pub fn has_tag(&self, t: &str) -> bool {
         self.tags.iter().any(|x| x == t)
     }
+    /// Exact date of the `done:` key, if any.
+    pub fn done_date(&self) -> Option<Civil> {
+        self.keys.get("done").and_then(|v| v.first()).and_then(|v| v.end)
+    }
+    /// A link node: sub-project or deliverable.
+    pub fn is_link_node(&self) -> bool {
+        matches!(self.kind, NodeKind::Subproject | NodeKind::Deliverable)
+    }
     pub fn walk<'a>(&'a self, f: &mut impl FnMut(&'a Node)) {
         f(self);
         for c in &self.children {
@@ -202,11 +216,10 @@ pub struct RefDef {
 pub struct Project {
     pub path: String,
     pub title: String,
-    pub id: Option<String>,
     pub owner: Option<Value>,
-    pub stakeholders: Vec<Value>,
     pub commitment: Option<DateExpr>,
-    pub state: Option<String>,
+    /// `Done:` header: the project was delivered on this date.
+    pub done: Option<DateExpr>,
     pub header: BTreeMap<String, String>,
     pub suffix: Suffix,
     pub nodes: Vec<Node>,
@@ -222,11 +235,6 @@ impl Project {
             n.walk(&mut f);
         }
     }
-    pub fn count_nodes(&self) -> usize {
-        let mut c = 0;
-        self.walk(|_| c += 1);
-        c
-    }
     pub fn find_id(&self, id: &str) -> Option<&Node> {
         let mut r = None;
         self.walk(|n| {
@@ -238,37 +246,22 @@ impl Project {
     }
 }
 
-/// A person from the profile's people registry.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct Person {
-    pub name: String,
-    pub email: Option<String>,
-}
-
-/// Parser options (core keys are always known; a profile adds more).
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct Options {
-    pub extra_keys: Vec<String>,
-    pub repeatable: Vec<String>,
-    pub states: Vec<String>,
-    pub people: BTreeMap<String, Person>,
-}
-
 /// Suggested fix for a diagnostic code (FORMAT §12, "Suggested fix"). `None` when the table has none.
 pub fn fix_hint(code: &str) -> Option<&'static str> {
     Some(match code {
         "E-SYNTAX" => "Give the key a value or close the bracket",
         "E-REF-LOCAL" => "Correct the id, or add `^id` to the target item",
-        "E-REF-PUBLIC" => "Ask the owner to add `#public`, or depend on the whole project",
+        "E-REF-PUBLIC" => "Ask the owner to expose a milestone (remove `#private`, or add a milestone that is `after:` the item)",
+        "W-DISPUTED" => "Agree a new date: the parent moves its `by:` or the child moves its Commitment",
+        "W-UNKNOWN" => "Check the link and its access",
+        "I-REQUESTED" => "Wait, or ask the child's owner",
+        "W-KEYLIKE" => "Write a valid value, or reword",
         "E-CYCLE" => "Remove one sub-project link",
         "E-CONFLICT" => "Move the declared date, shorten the estimate, or ask the container to move its `by:`",
         "W-NO-OWNER" => "Add `- Owner: Name <email>` under the title",
         "E-DATE" => "Write a valid date, rough date or range",
         "E-DUP-ID" => "Rename one of them",
         "E-REF-MISSING" => "Fix the path, or restore the file",
-        "E-BOUND" => "Agree a new date: the parent moves its `by:` or the child's owner moves its Commitment",
-        "W-STALE-LOCK" => "Refresh the lock with `pmd lock`",
-        "W-UNKNOWN-HANDLE" => "Add it to `.pmd/profile.md`, or write `Name <email>`",
         _ => return None,
     })
 }

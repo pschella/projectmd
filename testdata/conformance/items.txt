@@ -16,11 +16,11 @@ check:  open
 title:  Review #3 comments
 suffix: duration=1w id=review
 
-in:     - [ ] Tooling release  #public ^tr  approver: Marco Rossi <m@example.com>
+in:     - [ ] Tooling release  #public ^tr  owner: Marco Rossi <m@example.com>
 kind:   task
 check:  open
 title:  Tooling release
-suffix: tag=public id=tr approver=Marco Rossi <m@example.com>
+suffix: tag=public id=tr owner=Marco Rossi <m@example.com>
 
 in:     - [ ] Seat concept  2027-Q1 .. 2027-Q2
 kind:   task
@@ -140,20 +140,6 @@ kind:   milestone
 check:  open
 date:   2027-Q3
 title:  Beta
-suffix:
-
-in:     - [ ] 2027-H2 Stable
-kind:   milestone
-check:  open
-date:   2027-H2
-title:  Stable
-suffix:
-
-in:     - [ ] 2027-W14 Freeze
-kind:   milestone
-check:  open
-date:   2027-W14
-title:  Freeze
 suffix:
 
 in:     - [ ] 2027-06-30
@@ -277,23 +263,24 @@ check:  open
 title:  Review
 suffix: by=2027-06-30..2027-07-15
 
-in:     - [ ] Ship  after: file.md
+# note: D47: `after:` and `by:` take local ids or dates only; a cross-file value stays in the title (W-KEYLIKE).
+in:     - [ ] Ship after: file.md
 kind:   task
 check:  open
-title:  Ship
-suffix: after=file.md
+title:  Ship after: file.md
+suffix:
 
-in:     - [ ] Ship  after: [Cooling](cooling/cooling.md)
+in:     - [ ] Ship after: [Cooling](cooling/cooling.md)
 kind:   task
 check:  open
-title:  Ship
-suffix: after=[Cooling](cooling/cooling.md)
+title:  Ship after: [Cooling](cooling/cooling.md)
+suffix:
 
-in:     - [ ] Ship  replaced-by: ^new-milestone
+in:     - [ ] Ship by: cooling.md#ready
 kind:   task
 check:  open
-title:  Ship
-suffix: replaced-by=^new-milestone
+title:  Ship by: cooling.md#ready
+suffix:
 
 in:     - [ ] Ship  owner: @jan  owner: @piet
 kind:   task
@@ -420,19 +407,6 @@ kind:   task
 check:  open
 title:  Fix bug  0d
 suffix:
-
-in:     - [ ] Fix bug  2026-W53
-kind:   task
-check:  open
-title:  Fix bug
-suffix: date=2026-W53
-
-in:     - [ ] Fix bug  2027-W53
-kind:   task
-check:  open
-title:  Fix bug
-suffix: date=2027-W53
-# note: E-DATE (2027 has 52 ISO weeks). Unclear whether an invalid date token is still a token; this assumes yes.
 
 in:     - [ ] Fix bug  2027-Q5
 kind:   task

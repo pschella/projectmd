@@ -1,12 +1,8 @@
 #![allow(dead_code)]
 use pmd_core::*;
 
-pub fn opts() -> Options {
-    Options::default()
-}
-
 pub fn parse_str(src: &str) -> Project {
-    parse("t.md", src, &opts())
+    parse("t.md", src)
 }
 
 /// Parse a single list line placed after an H1 and return the first top-level node.

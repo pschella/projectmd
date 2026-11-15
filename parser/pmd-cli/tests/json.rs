@@ -1,8 +1,13 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn aurora() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/car/aurora.md")
+/// examples/org is the stable CLI fixture: a root with two disputes and one conflict below it.
+fn org(rel: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/org").join(rel)
+}
+
+fn top() -> PathBuf {
+    org("sales/vellmar/vellmar.md")
 }
 
 fn run(args: &[&str]) -> (i32, String) {
@@ -12,7 +17,7 @@ fn run(args: &[&str]) -> (i32, String) {
 
 #[test]
 fn check_json_has_diagnostics_remote_and_ok() {
-    let file = aurora();
+    let file = top();
     let (code, out) = run(&["check", file.to_str().unwrap(), "--json", "--today", "2026-11-15"]);
     let v: serde_json::Value = serde_json::from_str(&out).expect("check --json prints valid JSON");
     let diags = v["diagnostics"].as_array().expect("diagnostics is an array");
@@ -23,7 +28,7 @@ fn check_json_has_diagnostics_remote_and_ok() {
     for d in diags {
         assert!(d["path"].is_string());
         assert!(d["line"].is_number());
-        assert!(matches!(d["severity"].as_str(), Some("E") | Some("W")));
+        assert!(matches!(d["severity"].as_str(), Some("E") | Some("W") | Some("I")));
         assert!(d["code"].is_string());
         assert!(d["message"].is_string());
         assert!(d["fix"].is_string() || d["fix"].is_null());
@@ -32,7 +37,7 @@ fn check_json_has_diagnostics_remote_and_ok() {
 
 #[test]
 fn schedule_json_is_project_with_forecasts() {
-    let file = aurora();
+    let file = top();
     let (code, out) = run(&["schedule", file.to_str().unwrap(), "--json", "--today", "2026-11-15"]);
     assert_eq!(code, 0, "schedule --json exits 0 on a readable project");
     let v: serde_json::Value = serde_json::from_str(&out).expect("schedule --json prints valid JSON");
@@ -46,13 +51,34 @@ fn schedule_json_is_project_with_forecasts() {
 
 #[test]
 fn check_is_one_level_unless_deep() {
-    let file = aurora();
+    let file = top();
     let f = file.to_str().unwrap();
-    let (_, shallow) = run(&["check", f, "--today", "2026-11-15"]);
-    let (_, deep) = run(&["check", f, "--deep", "--today", "2026-11-15"]);
-    // aurora.md's own contract error is found either way ...
-    assert!(shallow.contains("aurora.md:32: E E-BOUND"), "{}", shallow);
-    // ... but the error two levels down (software.md) only with --deep.
-    assert!(!shallow.contains("software.md"), "{}", shallow);
-    assert!(deep.contains("software.md:23: E E-BOUND"), "{}", deep);
+    let (c1, shallow) = run(&["check", f, "--today", "2026-11-15"]);
+    let (c2, deep) = run(&["check", f, "--deep", "--today", "2026-11-15"]);
+    // the dispute and conflict below the front files show only with --deep
+    assert_eq!((c1, shallow.trim()), (0, ""), "{}", shallow);
+    assert_eq!(c2, 1);
+    assert!(deep.contains("displays.md:12: W W-DISPUTED") && deep.contains("E-CONFLICT"), "{}", deep);
+}
+
+#[test]
+fn usage_and_unknown_flags_exit_2() {
+    let f = top();
+    assert_eq!(run(&["frobnicate", f.to_str().unwrap()]).0, 2);
+    assert_eq!(run(&["fmt", f.to_str().unwrap(), "--if-hash", "x"]).0, 2);
+}
+
+#[test]
+fn org_states_are_live_and_fronts_hide_plans() {
+    let chk = |f: &str| run(&["check", org(f).to_str().unwrap(), "--today", "2026-11-15"]);
+    let (c, out) = chk("sales/vellmar/vellmar.md");
+    assert_eq!((c, out.trim()), (0, ""), "{}", out);
+    let (c, out) = chk("units/hardware/displays/displays.md");
+    assert_eq!(c, 1);
+    assert!(out.contains("W-DISPUTED") && out.contains("E-CONFLICT"), "{}", out);
+    let (c, out) = chk("units/software/private/software-plan.md");
+    assert_eq!(c, 0);
+    assert!(out.contains("W-DISPUTED") && out.contains("I-REQUESTED") && !out.contains("Timetable"), "{}", out);
+    let (c, out) = chk("teams/enclosures/enclosures.md");
+    assert_eq!((c, out.trim()), (0, ""), "{}", out);
 }

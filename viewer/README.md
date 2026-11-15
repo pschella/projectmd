@@ -11,10 +11,10 @@ Run (from the repo root):
 Files: `index.html`, `style.css`, `app.js` (UI, data model, rendering), `pmd.js` (WASM wrapper), `pmd.wasm` (built by `parser/build-wasm.sh`).
 
 Use:
-- Click a row (any kind, loaded or not) for a details panel: dates, forecast, conflict reason, `after:` links (click to jump to the row), tags, people, other keys, id, file location and, for sub-projects, the interface (commitment, start, public milestones) with its source (loaded file, or lock with the "as of" seen date).
+- Click a row (any kind, loaded or not) for a details panel: dates, forecast, conflict reason, `after:` links (click to jump to the row), tags, owner, other keys, id, file location and, for sub-projects, the interface (commitment, milestones) read live from its file.
 - Keyboard: Up/Down move, Right/Left expand/collapse (or step into/out of a group), Enter/Space toggle, Home/End, Esc closes the panel.
 - The chevron expands a sub-project (fetched on demand) or a heading. Ctrl/Cmd-click, double-click or the hover "Open" button makes a sub-project the top level (breadcrumbs and browser back work).
 - Zoom: Weeks / Months / Quarters / Years, +/-, Ctrl+wheel, Fit (whole project), Today. Drag the splitter to resize the table.
 - Hover highlights the row in table and chart; bars show a tooltip. Solid bars are declared, dashed ones are forecast only (placed by dependencies or duration), a thin line under a bar is the declared span when it differs from the forecast. Red marks a conflict (reason in tooltip and panel). The legend is at the bottom. Light and dark follow the system.
 
-Lock: the viewer loads only the opened file's own `NAME.lock` (`aurora.md` -> `aurora.lock`, same folder; FORMAT §9). It holds one entry per direct link (the contract: `by`, Commitment, public milestones, and `late` if the child forecasts past its Commitment), with locations relative to that file's folder. Nothing else is searched; without a lock the viewer still works (sub-projects just show no interface until expanded). Opening a sub-project as top level loads that file's own lock. Children are only fetched on expand.
+Direct links: the viewer reads the opened file's direct links live (one hop) to draw sub-projects and deliverables; a link it cannot read is shown as unknown. Children are expanded on demand.

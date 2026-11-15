@@ -31,7 +31,5 @@ function call(fn, text) {
   return JSON.parse(out);
 }
 
-/** req: {path, src, today, profile?, interfaces?} -> Project JSON (or {error}) */
+/** req: {path, src, today, interfaces?} -> Project JSON (or {error}) */
 export function parseProject(req) { return call('pmd_parse', JSON.stringify(req)); }
-/** raw pmd.lock text -> {entries:[...]} */
-export function parseLock(text) { return call('pmd_parse_lock', text); }
