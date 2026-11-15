@@ -72,6 +72,7 @@ markdown and the grammar is specified.
 
 | Document | For |
 |---|---|
+| [docs/DESIGN.md](docs/DESIGN.md) | How it works and why: requirements, concepts, files, linking, storage, checks. Start here to understand or review the design. |
 | [docs/CHEATSHEET.md](docs/CHEATSHEET.md) | The whole format on one page. Start here, or hand it to an AI agent. |
 | [docs/FORMAT.md](docs/FORMAT.md) | Format reference: the node model, scheduling, interfaces, the lock file, validation. |
 | [docs/GRAMMAR.md](docs/GRAMMAR.md) | The precise grammar. It decides how text is parsed. |
