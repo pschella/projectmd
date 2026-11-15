@@ -1,0 +1,4 @@
+# projectmd lock 0.2
+displays/displays.public.md  id=pis.example.com/units/hardware/displays  hash=97dbd1  by=2028-02-29  commitment=2028-02-29  start=2027-07-15  late=2028-04-05  status=at-risk  as-of=2026-11-12  seen=2026-11-15
+    pilot-batch  2027-07-15
+    series-ready  2028-02-29

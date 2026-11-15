@@ -114,3 +114,7 @@ Headings are free-form and only group things for humans (`## Milestones`, `## Wo
 | `@sanne` | Person handle, resolved through the people registry in `.pmd/profile.md`; otherwise use `Name <email>`. |
 | `[text][ref]` with `[ref]: https://…` at the end | Reference-style link, used for remote targets and for item lines longer than about 110 characters. |
 | `NAME.lock` | Tool-written sidecar beside `NAME.md`: the contracts with the projects it links directly. Never hand-edited. |
+
+## Distributed example
+
+[org/](org/README.md): a company in three stores (sales, units, teams) linked only through `*.public.md` interfaces, with hand-written locks, deliverable contracts, a late team propagating up, a disputed contract and a bottom-up team. Acceptance data for the tools; they do not implement it yet.

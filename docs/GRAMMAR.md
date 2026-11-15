@@ -58,7 +58,7 @@ A planning item's own children may be planning items, property bullets or prose.
 |---|---|
 | `milestone` | planning item with a leading date |
 | `subproject` | planning item without leading date whose **entire title** is one link (§4.2) whose resolved target has no `#fragment` and whose path ends in `.md` (case-insensitive; query string allowed for URLs) |
-| `deliverable` | planning item without leading date whose **entire title** is one link whose target **has** a `#fragment` (the id of a public milestone in another file) |
+| `deliverable` | planning item without leading date whose **entire title** is one link whose target **has** a `#fragment` (the id of an interface item in another file) |
 | `task` | any other planning item |
 | `heading` | §3 |
 
@@ -268,7 +268,7 @@ line is the version comment `# projectmd lock 0.2`.
   direct link, its interface: the linked file, or for a full plan the interface derived from
   it and its own lock (`X.md` → `X.lock`; a missing one is not an error). Nothing deeper. An
   unreadable direct link keeps its entry, with `status=unknown`.
-- **Milestone lines** are indented by 4 spaces: public milestone id (without `^`), its
+- **Milestone lines** are indented by 4 spaces: interface milestone id (without `^`), its
   declared date, and optionally `done=DATE`; or `-> new-id` for a tombstone.
 - Entries are sorted by location; milestones by id.
 
@@ -280,7 +280,7 @@ this subset of the grammar, in canonical form:
 1. First line `<!-- projectmd interface 0.2 -->`, then the H1 with the project name.
 2. A header (§6.1) in this order, omitting keys with no value: `Owner`, `Commitment`, `State`,
    `ID`, `Done`, `Late`, `As-of`, `Plan`.
-3. The `#public` milestones, in file order, as `- [c] DATE title  #public  ^id  [done: DATE]`.
+3. The interface items (FORMAT §8: milestones not tagged `#private`, plus items tagged `#public`, each at its declared end), in file order, as `- [c] DATE title  ^id  [done: DATE]`, without `#public`/`#private` tags.
    A tombstone keeps its `replaced-by:`.
 4. Nothing else: no headings, tasks, prose or links other than `Plan`. Exporting an
    interface returns it unchanged (except `As-of`).

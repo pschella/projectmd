@@ -18,7 +18,7 @@ and ignored by planning tools.
 
 ## Phase 1 — Concept  2026-11 .. 2027-06
 
-- [ ] 2027-06-30 Design freeze  #public  ^design-freeze
+- [ ] 2027-06-30 Design freeze  ^design-freeze
 - [ ] Concept & styling  12w  owner: @sanne
 - [ ] [Powertrain](powertrain/powertrain.md)  by: 2028-02-28
 ```
@@ -33,7 +33,7 @@ children and predecessors (`after:`).
 | Task `- [ ] Seat concept  6w` | node with a duration | optional declared end | sub-items, if any |
 | Milestone `- [ ] 2027-06-30 Design freeze` | point node: declared end, no duration | the date | none |
 | Sub-project `- [ ] [Powertrain](powertrain/powertrain.md)  by: 2028-02-28` | node whose children live in another file | `by:` = what the parent asks; the child's Commitment = what it promises | the child's items |
-| Deliverable `- [ ] [Pack B-samples](battery-pack.md#b-samples)  by: 2027-09-30` | node whose dates come from one public milestone of another project | `by:` = the contract; the milestone's date = the promise | none |
+| Deliverable `- [ ] [Pack B-samples](battery-pack.md#b-samples)  by: 2027-09-30` | node whose dates come from one milestone in another project's interface | `by:` = the contract; the milestone's date = the promise | none |
 | File (project) | node whose children are its items; its header sets its keys | Commitment = declared end | its items |
 | Heading `## Phase 1 — Concept  2026-11 .. 2027-06` | optional grouping node; ignored if no planning items sit under it | its range, if written | items under it |
 
@@ -169,16 +169,16 @@ external dependencies can be read without parsing the body:
 | Form | Meaning |
 |---|---|
 | `^cell-nomination` | item defined by `^cell-nomination` in this file |
-| `battery-pack.md#validated` | item `^validated` in another file; must be `#public` |
+| `battery-pack.md#validated` | item `^validated` in another file; must be in its interface (8) |
 | `https://…/inv-2207.md#a-samples` | the same, in a remote project |
 | `powertrain/powertrain.md` (no fragment) | the whole project; in `after:` it means that project's end (its Commitment) |
 
 `^id` names an item in this file, `file#id` one in another file; ids are unique within a file.
 
-**Public-only:** a reference into another file must target a `#public` milestone, so internal
-items can be renamed or re-planned freely. Local references are unrestricted.
+**Interface-only:** a reference into another file must target an item in its interface (8): a milestone not marked `#private`, or an item marked `#public`.
+Internal items can be renamed or re-planned freely. Local references are unrestricted.
 
-E.g. `after: [Pack validated](battery-pack.md#validated)` is valid only if `battery-pack.md` contains `- [ ] 2027-11-30 Pack validated  #public  ^validated`.
+E.g. `after: [Pack validated](battery-pack.md#validated)` is valid only if `battery-pack.md` contains `- [ ] 2027-11-30 Pack validated  ^validated` (a milestone, not `#private`).
 
 ## 7 Scheduling
 
@@ -190,6 +190,7 @@ end   = start + duration       if the node has a duration
       = latest child end       else if it has children
       = declared end           otherwise
 an unfinished node never ends before today
+a milestone never ends before its start
 ```
 
 A cancelled node (`[-]`) is not waited for. A sub-project's children are in another file, so its
@@ -221,11 +222,20 @@ file itself, so a file forecast past its own Commitment is a conflict in its own
 
 ## 8 Interfaces
 
-A project's **interface** is what it promises other projects: Commitment, `#public` milestones
-and, if it is late, `Late:`. It is published as a **projectmd file** (conventionally
+A project's **interface** is what it promises other projects: Commitment, milestones and, if it
+is late, `Late:`.
+
+- **Milestones are visible by default.** Every milestone (an item with a leading date) is in
+  the interface, unless tagged `#private`.
+- **The breakdown is internal by default.** Tasks, sub-project and deliverable lines are not in
+  the interface unless tagged `#public`. An exposed item needs a declared end (its date, the end
+  of its range or, for a sub-project, its Commitment) and appears in the interface as a
+  milestone at that date.
+
+The interface It is published as a **projectmd file** (conventionally
 `NAME.public.md`), so there is no second format. It contains the H1, the header keys `Owner`,
-`Commitment`, `State`, `ID`, `Done`, `Late`, `As-of` and optionally `Plan`, and the public
-milestones (checkbox, date, title, `#public`, `^id`, `done:`). Nothing else: no tasks, no
+`Commitment`, `State`, `ID`, `Done`, `Late`, `As-of` and optionally `Plan`, and the interface
+milestones (checkbox, date, title, `^id`, `done:`). Nothing else: no tasks, no
 people beyond `Owner`. Its first line is a comment naming the format version
 (`<!-- projectmd interface 0.2 -->`).
 
@@ -233,7 +243,7 @@ people beyond `Owner`. Its first line is a comment naming the format version
   same interface.
 - A parent may link a child's full plan or its interface; both are just projects. Tools derive
   the interface of a full plan. Whoever may read more follows `Plan:`.
-- No tool needed: a thin, hand-kept file (header plus public milestones) is a valid interface;
+- No tool needed: a thin, hand-kept file (header plus milestones) is a valid interface;
   any tool, spreadsheet or database may emit one.
 
 ```markdown
@@ -248,14 +258,14 @@ people beyond `Owner`. Its first line is a comment naming the format version
 - As-of: 2026-11-15
 - Plan: [Powertrain plan](powertrain.md)
 
-- [x] 2027-05-31 Powertrain concept frozen  #public  ^concept-frozen  done: 2027-05-28
-- [ ] 2028-02-15 Powertrain validated  #public  ^validated
+- [x] 2027-05-31 Powertrain concept frozen  ^concept-frozen  done: 2027-05-28
+- [ ] 2028-02-15 Powertrain validated  ^validated
 ```
 
-**Changes.** Non-breaking: a date moved earlier, or a public milestone added. Breaking: a date
-moved later, or a public milestone removed or renamed. Consumers must re-check. A removed or
-renamed public milestone leaves a cancelled tombstone,
-`- [-] … #public ^tooling-release replaced-by: ^tooling-release-2` **(open: exact shape)**.
+**Changes.** Non-breaking: a date moved earlier, or an interface milestone added. Breaking: a date
+moved later, or an interface milestone removed, renamed or made `#private`. Consumers must re-check. A removed or
+renamed interface milestone leaves a cancelled tombstone,
+`- [-] … ^tooling-release  replaced-by: ^tooling-release-2` **(open: exact shape)**.
 
 ## 9 Lock file
 
@@ -272,7 +282,7 @@ different teams and tools, and show only their interfaces. What crosses each bou
 - a **deliverable contract**: `by:` on a deliverable (2), against that milestone's date.
 
 The lock records every contract with a **directly** linked project, and nothing else: location,
-id, interface hash, `by`, Commitment, `late`, `status`, `as-of`, `done`, `seen`, and the public
+id, interface hash, `by`, Commitment, `late`, `status`, `as-of`, `done`, `seen`, and the interface
 milestones with dates. Never tasks, people or other internals. A link without `by:` is a
 dependency, not a contract. Example:
 
@@ -342,7 +352,7 @@ machines, dependency types other than finish-to-start, ticket import.
 | 1 | dates, durations, `owner:` | see a Gantt chart of one file |
 | 2 | `^id`, `after:` | see dependencies and conflicts |
 | 3 | links to files, `by:`, `Commitment:` | nest projects |
-| 4 | `#public`, cross-file references, deliverables, interfaces, lock file | scale across teams and repositories |
+| 4 | `#private`/`#public`, cross-file references, deliverables, interfaces, lock file | scale across teams and repositories |
 
 ## 12 Validation rules
 
@@ -355,7 +365,7 @@ E = error, W = warning, I = info. The message is what a person sees. Negotiation
 | E-DATE | Invalid date | "Line 7: `2027-02-30` is not a date" | Write a valid date, rough date or range |
 | E-DUP-ID | The same `^id` twice in a file | "`^audit` is defined twice" | Rename one of them |
 | E-REF-LOCAL | Dangling local reference | "Line 9: no item `^dyno-testin` in this file" | Correct the id, or add `^id` to the target item |
-| E-REF-PUBLIC | Reference to a non-public item | "`battery-pack.md#validated` is not `#public`" | Ask the owner to add `#public`, or depend on the whole project |
+| E-REF-PUBLIC | Reference to an item outside the target's interface | "`battery-pack.md#validated` is not in its interface" | Ask the owner to expose it (remove `#private`, or add `#public`), or depend on the whole project |
 | E-REF-MISSING | Linked local file cannot be read | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
 | E-CYCLE | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
 | E-CONFLICT | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
@@ -422,6 +432,6 @@ stays plain markdown for both; these conventions make machine edits small, safe 
 - **Publish with `pmd export FILE`** (8) rather than hand-writing an interface.
 - **Edit only what you own.** To ask another project for a date, write `by:` on your own link
   to it; never change its Commitment or milestones. Never write forecasts or lock files.
-- **Reasons travel with changes.** When a change moves a Commitment, a `by:` or a public
+- **Reasons travel with changes.** When a change moves a Commitment, a `by:` or an interface
   milestone, the commit message says why. The lock diff shows what changed; the commit says why.
 

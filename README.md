@@ -17,7 +17,7 @@ adds just enough structure to answer "when?" and "what depends on what?":
 ## Work
 - [x] 2026-10-31 Cell chemistry selected  ^chemistry
 - [ ] Module & pack design  12w  after: ^chemistry  owner: @priya
-- [ ] 2027-09-30 B-samples available  #public  ^b-samples
+- [ ] 2027-09-30 B-samples available  ^b-samples
 - [ ] [Cell module](cell-module.md)  by: 2027-06-30
 ```
 
@@ -38,8 +38,9 @@ already have valid:
 2. **Add time** where it helps: a date, a duration, an `after:`. Tools now forecast and flag
    conflicts.
 3. **Split** a task that grew into its own file and link it. That file is now a sub-project.
-4. **Promise and expose.** Give the file a `Commitment:` and mark the milestones others may
-   depend on `#public`. That is its interface; everything else stays private.
+4. **Promise and expose.** Give the file a `Commitment:`. Its milestones are visible to whoever
+   links it (`#private` hides one); tasks and sub-projects stay private unless tagged `#public`.
+   That is its interface.
 5. **Distribute.** Sub-projects can live anywhere a link can point: another folder, repository,
    server or a supplier's portal. Each is kept by its own team, with its own tools.
 
@@ -49,7 +50,7 @@ Both meet in the same graph. No file is special: every project is the top of its
 any sub-project can be moved elsewhere and stand on its own.
 
 **Contracts cross boundaries, nothing else.** Between a parent and a child the contract is the
-parent's need-by date (`by:`) and the child's promise (`Commitment:` and public milestones). A
+parent's need-by date (`by:`) and the child's promise (`Commitment:` and milestones). A
 tool-written lock file next to each project (`aurora.md` → `aurora.lock`) records the contracts
 with its direct links and whether each child is running late. Like export data in a Go build,
 that already summarizes everything further down. A slip deep in the graph surfaces one level up

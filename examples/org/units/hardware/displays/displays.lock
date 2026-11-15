@@ -1,0 +1,7 @@
+# projectmd lock 0.2
+../../../teams/display-panels/display-panels.public.md  id=pis.example.com/teams/display-panels  hash=d5d329  by=2027-12-31  commitment=2027-11-30  start=2027-05-31  status=agreed  as-of=2026-11-12  seen=2026-11-15
+    pilot-panels  2027-05-31
+    series-panels  2027-11-30
+../../../teams/enclosures/enclosures.public.md  id=pis.example.com/teams/enclosures  hash=3bfa72  by=2027-12-31  commitment=2027-12-15  start=2027-06-30  late=2028-03-15  status=at-risk  as-of=2026-11-13  seen=2026-11-15
+    pilot-enclosures  2027-06-30
+    series-ready  2027-12-15

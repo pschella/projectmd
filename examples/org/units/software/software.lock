@@ -1,0 +1,13 @@
+# projectmd lock 0.2
+../../teams/accessibility/accessibility.md  by=2027-06-30  status=requested
+../../teams/backend/backend.public.md  id=pis.example.com/teams/backend  hash=73df04  by=2028-01-31  commitment=2028-01-31  start=2027-06-30  status=agreed  as-of=2026-11-14  seen=2026-11-15
+    api-v1  2027-06-30
+    backend-complete  2028-01-31
+../../teams/data-feeds/data-feeds.public.md  id=pis.example.com/teams/data-feeds  hash=9f03ab  commitment=2027-06-30  start=2026-11-06  as-of=2026-11-15  seen=2026-11-15
+    realtime-feed  2027-03-31
+    timetable-adapter  2026-11-06  done=2026-11-06
+../../teams/data-feeds/data-feeds.public.md#timetable-adapter  by=2026-12-15  status=delivered
+    timetable-adapter  2026-11-06  done=2026-11-06
+../../teams/mobile-app/mobile-app.public.md  id=pis.example.com/teams/mobile-app  hash=d163ea  by=2027-12-31  commitment=2028-02-29  start=2027-06-30  status=disputed  as-of=2026-11-10  seen=2026-11-15
+    app-release  2028-02-29
+    pilot-app  2027-06-30
