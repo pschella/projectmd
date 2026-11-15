@@ -263,7 +263,7 @@ enum Raw<'a> {
     Other,
 }
 
-fn fence_open(l: &[u8]) -> Option<(u8, usize)> {
+pub(crate) fn fence_open(l: &[u8]) -> Option<(u8, usize)> {
     let mut i = 0;
     while i < l.len() && i < 3 && (l[i] == b' ' || l[i] == b'\t') {
         i += 1;
@@ -286,7 +286,7 @@ fn fence_open(l: &[u8]) -> Option<(u8, usize)> {
     }
 }
 
-fn fence_close(l: &[u8], ch: u8, len: usize) -> bool {
+pub(crate) fn fence_close(l: &[u8], ch: u8, len: usize) -> bool {
     let mut i = 0;
     while i < l.len() && i < 3 && (l[i] == b' ' || l[i] == b'\t') {
         i += 1;
@@ -298,7 +298,7 @@ fn fence_close(l: &[u8], ch: u8, len: usize) -> bool {
     i - s >= len && l[i..].iter().all(|c| is_ws(*c))
 }
 
-fn parse_heading(l: &str) -> Option<(u8, &str)> {
+pub(crate) fn parse_heading(l: &str) -> Option<(u8, &str)> {
     let b = l.as_bytes();
     let mut k = 0;
     while k < b.len() && b[k] == b'#' {
@@ -313,7 +313,7 @@ fn parse_heading(l: &str) -> Option<(u8, &str)> {
     Some((k as u8, t))
 }
 
-fn parse_refdef(l: &str) -> Option<(String, RefDef)> {
+pub(crate) fn parse_refdef(l: &str) -> Option<(String, RefDef)> {
     let b = l.as_bytes();
     let mut i = 0;
     while i < b.len() && i < 3 && (b[i] == b' ' || b[i] == b'\t') {
@@ -353,7 +353,7 @@ fn parse_refdef(l: &str) -> Option<(String, RefDef)> {
     Some((norm_label(label), RefDef { target: target.to_string(), title: Some(l[r + 1..k].to_string()) }))
 }
 
-fn parse_item(l: &str) -> Option<(u32, &str)> {
+pub(crate) fn parse_item(l: &str) -> Option<(u32, &str)> {
     let b = l.as_bytes();
     let mut i = 0;
     let mut indent = 0u32;
@@ -1392,4 +1392,56 @@ fn is_subproject_target(t: &str) -> bool {
         _ => t,
     };
     ends_md(p)
+}
+
+/// A planning item body split into its parts, for the formatter (GRAMMAR §2.2, §4.3).
+pub(crate) struct ItemSplit {
+    pub checkbox: Option<char>,
+    /// Leading date or range in canonical spelling (`A .. B` for ranges).
+    pub lead: Option<String>,
+    /// Title, verbatim.
+    pub title: String,
+    pub suffix: Suffix,
+    /// The parser reports an error for this item; the formatter then leaves its text alone.
+    pub has_error: bool,
+}
+
+/// Split a list item body into checkbox, leading date, title and suffix. `None` when the body is
+/// not a planning item (prose or a property bullet).
+pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>, opts: &Options) -> Option<ItemSplit> {
+    let mut p = P {
+        extra: opts.extra_keys.iter().map(|k| k.to_ascii_lowercase()).collect(),
+        rep: opts.repeatable.iter().map(|k| k.to_ascii_lowercase()).collect(),
+        diags: Vec::new(),
+        refdefs: refdefs.clone(),
+        atoms: Vec::new(),
+        ids: HashMap::new(),
+        refs: Vec::new(),
+    };
+    let bb = body.as_bytes();
+    let mut checkbox = None;
+    let mut rest = body;
+    if bb.len() >= 4 && bb[0] == b'[' && bb[2] == b']' && is_ws(bb[3]) && matches!(bb[1], b' ' | b'x' | b'X' | b'-') {
+        checkbox = Some(bb[1] as char);
+        rest = &body[skip_ws(bb, 3)..];
+    }
+    let (lead, after) = p.leading(rest, 0);
+    if checkbox.is_none() && matches!(lead, Leading::None) {
+        return None;
+    }
+    let lead_text = if matches!(lead, Leading::None) {
+        None
+    } else {
+        let raw = rest[..rest.len() - after.len()].trim();
+        let w: Vec<&str> = raw.split_whitespace().collect();
+        Some(match w.as_slice() {
+            [one] if one.contains("..") => one.replacen("..", " .. ", 1),
+            _ => w.join(" "),
+        })
+    };
+    let range_lead = matches!(lead, Leading::Range(_));
+    let ext = p.extract(after, 0);
+    let has_error = p.diags.iter().any(|d| d.is_error()) || ext.nt == 0 || (range_lead && ext.suffix.range.is_some());
+    let title = after[ext.ts..ext.te].to_string();
+    Some(ItemSplit { checkbox, lead: lead_text, title, suffix: ext.suffix, has_error })
 }

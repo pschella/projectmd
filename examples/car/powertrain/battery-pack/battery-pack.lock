@@ -1,0 +1,7 @@
+# battery-pack.lock — tool-generated snapshot; rebuild with `pmd lock battery-pack.md`.
+bms.md  id=cars.example.com/platform/bms  hash=08203a72a33ab741  by=2027-09-30  commitment=2027-09-15  start=2026-11-02  seen=2026-11-15
+    hw-release  2027-06-30
+    sw-release  2027-09-15
+cell-module.md  id=cars.example.com/platform/battery-pack/cell-module  hash=a76b5d6a29e1f3d1  by=2027-06-30  commitment=2027-06-30  start=2026-10-12  seen=2026-11-15
+    sign-off  2027-02-26
+https://cells.example.org/plans/ncm-811-2027.md  seen=2026-11-15

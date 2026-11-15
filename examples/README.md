@@ -11,8 +11,8 @@ examples/
 ├── README.md
 └── car/
     ├── .pmd/profile.md                  profile: states, extra key, people registry
-    ├── pmd.lock                         tool-written snapshot (`pmd lock car/aurora.md`)
     ├── aurora.md                        Aurora — compact EV (programme, top level)
+    ├── aurora.lock                      tool-written contracts with aurora.md's direct links (`pmd lock aurora.md`)
     ├── body/
     │   ├── body.md                      Body & chassis
     │   ├── closures.md                  Doors, tailgate, bonnet (detailed)
@@ -71,7 +71,7 @@ Cell module → Cell supplier qualification.
 | [ota-backend.md](car/software/ota-backend.md) | **Quarters only** for every milestone and task; one owner handle and no exact dates. |
 | [transit-e.md](car/van/transit-e.md) | Second parent of the battery pack. Its link carries the stable id in the link title (`"id:…"`). The **first intentional conflict** is recorded here. |
 | [.pmd/profile.md](car/.pmd/profile.md) | The profile: state vocabulary (now with `sourcing` and `qualification`), the extra key `ticket:`, and the `@handle` registry. |
-| [pmd.lock](car/pmd.lock) | Tool-written snapshot of every project reachable from `aurora.md` (`pmd lock car/aurora.md`): commitment, start and public milestones. The viewer draws collapsed sub-projects from it. |
+| [aurora.lock](car/aurora.lock) | Tool-written contracts with the projects `aurora.md` links directly (`pmd lock car/aurora.md`): need-by (`by`), commitment, start, public milestones, and `late` when a child forecasts past its commitment (here: Powertrain). The viewer draws collapsed sub-projects from it. Every other file that links projects has its own `NAME.lock` beside it, built bottom-up. |
 
 ## Intentional conflicts
 
@@ -113,4 +113,4 @@ Headings are free-form and only group things for humans (`## Milestones`, `## Wo
 | `a .. b` | Date range. |
 | `@sanne` | Person handle, resolved through the people registry in `.pmd/profile.md`; otherwise use `Name <email>`. |
 | `[text][ref]` with `[ref]: https://…` at the end | Reference-style link, used for remote targets and for item lines longer than about 110 characters. |
-| `pmd.lock` | Tool-written sidecar at the repository root: a snapshot of linked projects. Never hand-edited. |
+| `NAME.lock` | Tool-written sidecar beside `NAME.md`: the contracts with the projects it links directly. Never hand-edited. |

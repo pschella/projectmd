@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>projectmd viewer</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,31 +11,53 @@
 <header id="toolbar">
   <div id="titlebox"><strong id="ptitle">projectmd</strong><span id="pmeta"></span></div>
   <nav id="crumbs" aria-label="Previous top-level projects"></nav>
-  <form id="openform" autocomplete="off">
-    <input id="rootinput" type="text" placeholder="/path/to/project.md or URL" spellcheck="false">
-    <button type="submit">Open</button>
-  </form>
   <div id="tools">
-    <label class="chk"><input type="checkbox" id="wbs" checked> WBS</label>
-    <button id="zout" title="Zoom out (Ctrl+wheel)">&minus;</button>
-    <button id="zin" title="Zoom in (Ctrl+wheel)">+</button>
-    <button id="zfit" title="Fit whole project">Fit</button>
+    <form id="openform" autocomplete="off">
+      <input id="rootinput" type="text" placeholder="/path/to/project.md or URL" spellcheck="false" aria-label="Project file or URL">
+      <button type="submit">Open</button>
+    </form>
+    <div class="seg" id="zoomseg" role="group" aria-label="Zoom">
+      <button data-z="week" title="Weeks">Weeks</button><button data-z="month" title="Months">Months</button><button data-z="quarter" title="Quarters">Quarters</button><button data-z="year" title="Years">Years</button>
+    </div>
+    <div class="seg">
+      <button id="zout" title="Zoom out (Ctrl+wheel)" aria-label="Zoom out">&minus;</button><button id="zin" title="Zoom in (Ctrl+wheel)" aria-label="Zoom in">+</button>
+    </div>
+    <button id="zfit" title="Fit the whole project">Fit</button>
     <button id="ztoday" title="Scroll to today">Today</button>
+    <label class="chk"><input type="checkbox" id="wbs" checked> WBS</label>
   </div>
 </header>
 <div id="banner" hidden></div>
 <main id="main">
-  <section id="left">
-    <div id="lhead" class="grid"><div>Name</div><div>Start</div><div>Finish</div><div>Duration</div><div>Owner</div></div>
-    <div id="lbody"><div id="lspacer"></div></div>
+  <section id="left" tabindex="-1">
+    <div id="lhead" class="grid"><div>Name</div><div>Start</div><div>Finish</div><div>Dur.</div><div>Owner</div></div>
+    <div id="lbody"><div id="lspacer" role="treegrid" aria-label="Project tree"></div></div>
   </section>
   <div id="split" title="Drag to resize"></div>
   <section id="right">
     <div id="rhead"><div id="rhinner"></div></div>
     <div id="rbody"><div id="canvas"><div id="gridlines"></div><div id="today"></div><div id="trows"></div><svg id="deps" xmlns="http://www.w3.org/2000/svg"></svg></div></div>
   </section>
-  <aside id="detail" hidden></aside>
+  <aside id="detail" hidden aria-label="Details"></aside>
 </main>
+<footer id="legend" aria-label="Legend">
+  <span><i class="lg bar st-open"></i>Open</span>
+  <span><i class="lg bar st-done"></i>Done</span>
+  <span><i class="lg bar st-cancelled"></i>Cancelled</span>
+  <span><i class="lg bar conf"></i>Conflict</span>
+  <span><i class="lg bar fc"></i>Forecast only</span>
+  <span><i class="lg declln"></i>Declared dates</span>
+  <span><i class="lg ms"></i>Milestone</span>
+  <span><i class="lg sub"></i>Sub-project</span>
+  <span><i class="lg unk"></i>Unknown</span>
+  <span><i class="lg todayl"></i>Today</span>
+  <span class="hint">Arrows move, Enter/Space expands</span>
+</footer>
+<div id="mdview" hidden role="dialog" aria-label="File view">
+  <div id="mdhead"><strong id="mdtitle"></strong><a id="mdraw" target="_blank" rel="noopener">raw</a><button id="mdopen" title="Make this file the top-level Gantt project">Open as project</button><button id="mdclose" title="Close (Esc)">Close</button></div>
+  <div id="mdbody"></div>
+</div>
+<div id="tip" hidden></div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

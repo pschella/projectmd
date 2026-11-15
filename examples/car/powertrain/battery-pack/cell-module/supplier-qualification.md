@@ -23,11 +23,11 @@ copied.
 ## Work
 
 - [x] Supplier questionnaire returned  2026-10-20 .. 2026-11-06  owner: @ingrid
-- [ ] Cell line capability study  3w  owner: @ingrid  after: ^audit
+- [ ] Cell line capability study  3w  after: ^audit  owner: @ingrid
 - [ ] Cell lot traceability review  1w  owner: @ingrid  ticket: PACK-322
-- [ ] Process FMEA workshop  4w  owner: @jonas  after: ^audit
+- [ ] Process FMEA workshop  4w  after: ^audit  owner: @jonas
 - [ ] Cell specification v3 agreed with supplier  after: [Cell spec v3][cell-spec]
-- [ ] Dimensional and sample run at supplier  3w  owner: @ingrid  after: ^pfmea
+- [ ] Dimensional and sample run at supplier  3w  after: ^pfmea  owner: @ingrid
 - [ ] Qualification report  2w  after: ^ppap-submit
 - [-] Second-source line audit  dropped after the single-source decision
 

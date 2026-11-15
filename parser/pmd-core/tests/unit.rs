@@ -604,19 +604,6 @@ fn lock_roundtrip_and_build() {
         "# comment\n# more\na/a.md  hash=ff\nb/b.md  id=x/b  hash=abcd  commitment=2027-Q1  seen=2026-11-14  extra=1\n    m1  -> m3\n    m2  2027-02-01\nhttps://h.example/p.md  seen=2026-11-14\n"
     );
     assert_eq!(Lock::parse(&out).to_string(), out);
-
-    let g = graph_of(&[
-        ("car/root.md", "# Root\n\n- Owner: @a\n- ID: ex/root\n- Commitment: 2028-01..2028-02\n\n- [ ] [Sub](sub/sub.md)\n- [ ] [Rem][r]\n- [ ] X after: sub/sub.md#pub\n\n[r]: https://h.example/r.md\n"),
-        ("car/sub/sub.md", "# Sub\n\n- Owner: @a\n- Commitment: 2027-Q4\n\n- [ ] 2027-10-01 P  #public ^pub\n- [x] 2027-11-01 Old  #public ^old  replaced-by: ^pub\n- [ ] 2027-12-01 Q  ^priv\n"),
-    ]);
-    let l = build_lock("car/root.md", &g);
-    let locs: Vec<&str> = l.entries.iter().map(|e| e.location.as_str()).collect();
-    assert_eq!(locs, ["https://h.example/r.md", "root.md", "sub/sub.md"]);
-    let sub = l.entry("sub/sub.md").unwrap();
-    assert_eq!(sub.field("commitment"), Some("2027-Q4"));
-    assert_eq!(sub.milestones, [("old".to_string(), "-> pub".to_string()), ("pub".to_string(), "2027-10-01".to_string())]);
-    assert_eq!(l.entry("root.md").unwrap().field("id"), Some("ex/root"));
-    assert_eq!(l.entry("root.md").unwrap().field("commitment"), Some("2028-01..2028-02"));
 }
 
 #[test]

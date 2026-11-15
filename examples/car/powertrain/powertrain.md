@@ -18,7 +18,7 @@ Electric drive unit, battery pack and charging for Aurora.
 - [ ] [Inverter (supplier)][inv]  by: 2027-09-30
 - [ ] E-motor  owner: Priya Nair <priya.nair@example.com>
   - [ ] Electromagnetic design  6w  ^em-design
-  - [ ] Dyno testing  8w  ^dyno-testing  after: ^em-design
+  - [ ] Dyno testing  8w  after: ^em-design  ^dyno-testing
 
 ## Phase 2 — Validation  2027-Q4 .. 2028-Q1
 

@@ -18,7 +18,7 @@ plant readiness so that the line cannot start on unapproved parts.
 ## Work
 
 - [x] Capability study template agreed  2026-10-12 .. 2026-11-06  owner: @ingrid
-- [ ] Control plans per part family  6w  owner: @ingrid  after: ^families
+- [ ] Control plans per part family  6w  after: ^families  owner: @ingrid
 - [ ] Dimensional layout reports  5w  after: ^families
 - [ ] Sample run at supplier sites  3w  after: ^families
 - [ ] Cell supplier PPAP  after: [Supplier qualified][sq-ref]

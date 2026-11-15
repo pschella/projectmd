@@ -1,0 +1,7 @@
+# powertrain.lock — tool-generated snapshot; rebuild with `pmd lock powertrain.md`.
+battery-pack/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=41d1890a45d5b3e1  by=2027-12-15  commitment=2026-09-01..2027-11-30  start=2026-09-01  seen=2026-11-15
+    b-samples  2027-09-30
+    pack-design-freeze  -> pack-design-release
+    pack-design-release  2027-06-15
+    validated  2027-11-30
+https://supplier-portal.example.net/projects/inv-2207.md  by=2027-09-30  seen=2026-11-15

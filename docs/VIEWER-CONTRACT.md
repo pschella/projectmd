@@ -12,7 +12,7 @@ strings cross the boundary.
 | `pmd_alloc` | `(len: u32) -> u32` | allocate `len` bytes; returns a pointer |
 | `pmd_free` | `(ptr: u32, len: u32)` | free a buffer from `pmd_alloc` or from a result |
 | `pmd_parse` | `(in_ptr: u32, in_len: u32) -> u64` | input: UTF-8 JSON request (below). Returns `(ptr << 32) \| len` of a UTF-8 JSON result, which the caller frees |
-| `pmd_parse_lock` | `(in_ptr: u32, in_len: u32) -> u64` | input: raw `pmd.lock` text. Returns JSON `{ "entries": [ { "location", "id", "hash", "commitment": DateExpr\|null, "start": "YYYY-MM-DD"\|null, "seen", "milestones": { "<id>": DateExpr \| {"replaced_by": "<id>"} } } ] }` |
+| `pmd_parse_lock` | `(in_ptr: u32, in_len: u32) -> u64` | input: raw lock file text (`NAME.lock`). Returns JSON `{ "entries": [ { "location", "id", "hash", "commitment": DateExpr\|null, "start": "YYYY-MM-DD"\|null, "by": string\|null, "late": string\|null, "seen", "milestones": { "<id>": DateExpr \| {"replaced_by": "<id>"} } } ] }` |
 
 ### `pmd_parse` request
 
@@ -33,11 +33,12 @@ strings cross the boundary.
 ```
 
 `interfaces` holds the **declared** dates of other projects (locality rule, FORMAT §7.3).
-The viewer fills it from `pmd.lock` entries and from child projects it has already loaded.
+The viewer fills it from the opened file's lock (`NAME.lock`: one entry per direct link) and from the lock of each loaded sub-project and from child projects it has already loaded.
 The keys are paths normalised the same way the parser resolves links: relative to the
 current file's folder, `.` and `..` segments collapsed, with URLs kept as they are.
 An interface may include `"start"` (the project's earliest declared date, lock `start=`);
-it is the forecast start of a sub-project that has no other start.
+it is the forecast start of a sub-project that has no other start. It may include `"late"`
+(lock `late=`): the child then counts as finishing at that date instead of its Commitment end.
 
 ### `pmd_parse` result
 

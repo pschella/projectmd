@@ -2,6 +2,7 @@
 //! crate can be compiled to WebAssembly.
 
 pub mod date;
+pub mod fmt;
 pub mod graph;
 pub mod lock;
 pub mod model;

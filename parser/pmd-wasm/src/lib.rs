@@ -131,6 +131,8 @@ fn parse_request(req: &str) -> String {
                 v.get("start").and_then(J::as_str),
                 ms.into_iter().flatten().filter_map(|(id, d)| d.as_str().map(|d| (id.as_str(), d))),
             );
+            let mut i = i;
+            i.late = v.get("late").and_then(J::as_str).and_then(span_of_text).map(|s| s.1);
             ifs.insert(k.clone(), i.clone());
             ifs.insert(normalize(k), i);
         }
@@ -173,6 +175,8 @@ fn lock_json(src: &str) -> String {
                 "hash": e.field("hash"),
                 "commitment": e.field("commitment").map(date_expr).unwrap_or(J::Null),
                 "start": e.field("start").and_then(span_of_text).map(|s| s.0.to_string()),
+                "by": e.field("by"),
+                "late": e.field("late"),
                 "seen": e.field("seen"),
                 "milestones": ms,
             })
@@ -206,7 +210,7 @@ mod tests {
     #[test]
     fn parse_aurora_end_to_end() {
         let src = std::fs::read_to_string(root().join("aurora.md")).unwrap();
-        let lock = std::fs::read_to_string(root().join("pmd.lock")).unwrap();
+        let lock = std::fs::read_to_string(root().join("aurora.lock")).unwrap();
         let l = call(pmd_parse_lock, &lock);
         let mut ifs = serde_json::Map::new();
         for e in l["entries"].as_array().unwrap() {
@@ -216,7 +220,7 @@ mod tests {
                 .iter()
                 .filter_map(|(k, v)| v["text"].as_str().map(|t| (k.clone(), json!(t))))
                 .collect();
-            ifs.insert(e["location"].as_str().unwrap().to_string(), json!({ "commitment": e["commitment"]["text"], "milestones": ms }));
+            ifs.insert(e["location"].as_str().unwrap().to_string(), json!({ "commitment": e["commitment"]["text"], "late": e["late"], "milestones": ms }));
         }
         let req = json!({ "path": "aurora.md", "src": src, "today": "2026-11-14", "interfaces": ifs });
         let p = call(pmd_parse, &req.to_string());
@@ -241,9 +245,9 @@ mod tests {
         }
         assert!(forecasts > 10, "{}", forecasts);
         assert_eq!(linked, 6);
-        // Powertrain sub-project end comes from the lock's Commitment
+        // Powertrain sub-project end comes from the lock: its late date (forecast) beats its Commitment
         let pt = p["nodes"][1]["children"].as_array().unwrap().iter().find(|n| n["link_resolved"] == "powertrain/powertrain.md").unwrap();
-        assert_eq!(pt["forecast"]["end"], "2028-02-15");
+        assert_eq!(pt["forecast"]["end"], "2028-03-31");
         assert_eq!(pt["forecast"]["declared_end"], "2028-02-28");
     }
 

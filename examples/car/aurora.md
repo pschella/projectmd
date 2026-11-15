@@ -35,7 +35,7 @@ start of production in Q4 2028.
 - [ ] [Vehicle software](software/software.md)  by: 2028-Q3
 - [ ] [Homologation](homologation/homologation.md)  by: ^type-approval
 - [ ] [Plant readiness](manufacturing/plant-readiness.md)  by: 2028-10-31
-- [ ] Prototype build  8w  owner: @jan  after: [Pack B-samples][pack-b]
+- [ ] Prototype build  8w  after: [Pack B-samples][pack-b]  owner: @jan
 - [ ] Production readiness  2028-10-01 .. 2028-11-15  after: ^tooling-release  after: [Plant ready][plant-ready]
 
 ## Risks

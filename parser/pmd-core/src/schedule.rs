@@ -16,6 +16,9 @@ pub struct Interface {
     pub start: Option<Civil>,
     /// Public milestone id -> declared (end) date.
     pub milestones: BTreeMap<String, Civil>,
+    /// Forecast end when the owner says the project cannot keep its Commitment (lock `late=`).
+    /// Counts as the project's end instead of the Commitment end.
+    pub late: Option<Civil>,
 }
 
 /// Interfaces by normalized path or URL.
@@ -70,7 +73,9 @@ impl Interface {
         i
     }
     pub fn from_lock_entry(e: &LockEntry) -> Interface {
-        Interface::from_texts(e.field("commitment"), e.field("start"), e.milestones.iter().map(|(a, b)| (a.as_str(), b.as_str())))
+        let mut i = Interface::from_texts(e.field("commitment"), e.field("start"), e.milestones.iter().map(|(a, b)| (a.as_str(), b.as_str())));
+        i.late = e.field("late").and_then(span_of_text).map(|s| s.1);
+        i
     }
 }
 
@@ -140,7 +145,8 @@ fn mn(a: Option<Civil>, b: Option<Civil>) -> Option<Civil> {
     }
 }
 
-fn ext_date(path: &str, target: &str, interfaces: &Interfaces) -> Option<Civil> {
+/// Declared end of a cross-file target: a milestone (`file.md#id`) or the project's end.
+pub fn ext_date(path: &str, target: &str, interfaces: &Interfaces) -> Option<Civil> {
     let (p, frag) = split_fragment(target);
     if p.is_empty() {
         return None;
@@ -149,7 +155,7 @@ fn ext_date(path: &str, target: &str, interfaces: &Interfaces) -> Option<Civil> 
     let i = interfaces.get(&key)?;
     match frag.filter(|f| !f.is_empty()) {
         Some(f) => i.milestones.get(f).copied(),
-        None => i.commitment.map(|c| c.1),
+        None => i.late.or(i.commitment.map(|c| c.1)),
     }
 }
 
@@ -208,7 +214,7 @@ impl<'a> Ctx<'a> {
         if let Some(iface) = info.iface.as_ref().filter(|f| f.commitment.is_some()) {
             // sub-project: the child's declared Commitment
             let (cs, ce) = iface.commitment.unwrap();
-            end = Some(ce);
+            end = Some(iface.late.unwrap_or(ce));
             if start.is_none() {
                 start = iface.start.or(if cs != ce { Some(cs) } else { None });
             }

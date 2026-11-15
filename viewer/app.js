@@ -1,13 +1,14 @@
 // projectmd Gantt viewer: view-only. See README.md.
 import { loadPmd, parseProject, parseLock } from './pmd.js';
+import { renderMarkdown } from './md.js';
 
-const RH = 26;            // row height (px), must match --rh
+const RH = 28;            // row height (px), must match --rh
 const HH = 22;            // header tier height
 const DAY = 86400000;
 const $ = (id) => document.getElementById(id);
 const els = {};
-['ptitle', 'pmeta', 'crumbs', 'openform', 'rootinput', 'wbs', 'zout', 'zin', 'zfit', 'ztoday', 'banner', 'main', 'left', 'lbody', 'lspacer',
-  'split', 'rhead', 'rhinner', 'rbody', 'canvas', 'gridlines', 'today', 'trows', 'deps', 'detail'].forEach((i) => (els[i] = $(i)));
+['ptitle', 'pmeta', 'crumbs', 'openform', 'rootinput', 'wbs', 'zout', 'zin', 'zfit', 'ztoday', 'zoomseg', 'banner', 'main', 'left', 'lbody', 'lspacer',
+  'split', 'rhead', 'rhinner', 'rbody', 'canvas', 'gridlines', 'today', 'trows', 'deps', 'detail', 'tip', 'mdview', 'mdtitle', 'mdraw', 'mdopen', 'mdclose', 'mdbody'].forEach((i) => (els[i] = $(i)));
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -55,7 +56,11 @@ function urlParam(k) { return encodeURIComponent(k).replace(/%2F/g, '/').replace
 // ---------- state ----------
 const S = {
   rootKey: null, crumbs: [], profile: null,
-  lock: new Map(),          // key -> lock entry (with _depth)
+  lock: new Map(),          // key -> entry of the opened file's NAME.lock (hoisted)
+  lockKey: null, lockOk: false,
+  linkItem: new Map(),      // target key -> first sub-project item linking it
+  idItem: new Map(),        // 'file#id' -> item
+  rowById: new Map(), hover: -1, detailOpen: false,
   metaDirs: new Set(),
   projects: new Map(),      // key -> {key,status,proj,root,err}
   collapsed: new Set(),     // item ids (headings/projects/tasks) the user collapsed
@@ -74,17 +79,15 @@ async function fetchText(key) {
   return r.text();
 }
 
+// Profile: .pmd/profile.md in the file's folder or a parent (first found wins).
 async function loadMeta(fileKey) {
   const u = new URL(urlOf(fileKey));
   const parts = u.pathname.split('/'); parts.pop();
   const jobs = [];
   for (;;) {
-    const dirPath = parts.join('/') + '/';
-    const dirUrl = new URL(dirPath, u);
-    const dirKey = keyOf(dirUrl.href);
+    const dirKey = keyOf(new URL(parts.join('/') + '/', u).href);
     if (!S.metaDirs.has(dirKey)) {
       S.metaDirs.add(dirKey);
-      jobs.push(loadLockFrom(dirKey, dirPath.length));
       if (!S.profile) jobs.push(fetchText(dirKey + '.pmd/profile.md').then((t) => { if (!S.profile) S.profile = t; }).catch(() => {}));
     }
     if (parts.length <= 1) break;
@@ -93,17 +96,20 @@ async function loadMeta(fileKey) {
   await Promise.all(jobs);
 }
 
-async function loadLockFrom(dirKey, depth) {
+// Lock: only the opened file's own NAME.lock (hoisted: lists every reachable project);
+// locations are relative to that file's folder. Missing lock is fine.
+const lockKeyOf = (key) => {
+  const u = new URL(urlOf(key));
+  u.pathname = /\.md$/i.test(u.pathname) ? u.pathname.replace(/\.md$/i, '.lock') : u.pathname + '.lock';
+  return keyOf(u.href);
+};
+async function loadLock(fileKey) {
+  S.lock = new Map(); S.lockOk = false; S.lockKey = lockKeyOf(fileKey);
   try {
-    const lockKey = dirKey + 'pmd.lock';
-    const text = await fetchText(lockKey);
-    const res = parseLock(text);
-    for (const e of res.entries || []) {
-      const k = resolveKey(lockKey, e.location);
-      const old = S.lock.get(k);
-      if (!old || old._depth < depth) S.lock.set(k, Object.assign({}, e, { _depth: depth }));
-    }
-  } catch (e) { /* no lock here */ }
+    const res = parseLock(await fetchText(S.lockKey));
+    for (const e of res.entries || []) S.lock.set(resolveKey(S.lockKey, e.location), e);
+    S.lockOk = true;
+  } catch (e) { /* no lock: the viewer works without */ }
 }
 
 function buildInterfaces() {
@@ -112,13 +118,14 @@ function buildInterfaces() {
     const i = { milestones: {} };
     const c = dateText(e.commitment); if (c) i.commitment = c;
     if (e.start) i.start = e.start;
+    if (e.late) i.late = e.late;
     for (const [m, v] of Object.entries(e.milestones || {})) { const t = dateText(v); if (t) i.milestones[m] = t; }
     out[k] = i;
   }
   for (const [k, en] of S.projects) {
     if (en.status !== 'ok') continue;
     const i = { milestones: {} };
-    const lk = S.lock.get(k); if (lk && lk.start) i.start = lk.start;
+    const lk = S.lock.get(k); if (lk && lk.start) i.start = lk.start; if (lk && lk.late) i.late = lk.late;
     if (en.proj.commitment && en.proj.commitment.text) i.commitment = en.proj.commitment.text;
     (function w(ns) { for (const n of ns) { if (n.id && (n.tags || []).includes('public') && n.date && n.date.text) i.milestones[n.id] = n.date.text; w(n.children || []); } })(en.proj.nodes || []);
     out[k] = i;
@@ -132,7 +139,9 @@ function mkItems(nodes, entry, parent) {
     if (node.kind === 'subproject') {
       const t = node.link_resolved || (node.link && resolveKey(entry.key, node.link.target)) || null;
       it.target = t ? keyOf(urlOf(t.split('#')[0])) : null;
+      if (it.target && !S.linkItem.has(it.target)) S.linkItem.set(it.target, it);
     }
+    if (node.id) S.idItem.set(entry.key + '#' + node.id, it);
     it.children = mkItems(node.children || [], entry, it);
     return it;
   });
@@ -194,16 +203,28 @@ function ownSpan(it) {
   return { s, e };
 }
 
+// ---------- after: targets ----------
+function afterTarget(entryKey, v) {
+  const t = v.kind === 'link' ? v.target : v.text;
+  if (!t) return null;
+  if (t[0] === '^') return { file: entryKey, id: t.slice(1) };
+  const [f, h] = t.split('#');
+  return { file: f ? resolveKey(entryKey, f) : entryKey, id: h || null };
+}
+function itemOfTarget(tg) { return (tg.id && S.idItem.get(tg.file + '#' + tg.id)) || S.linkItem.get(tg.file) || null; }
+
 // ---------- flatten ----------
 function flatten() {
   const rows = [];
   const idRow = new Map(), fileRow = new Map();
+  S.rowById = new Map();
   const rootEn = S.projects.get(S.rootKey);
   if (!rootEn || rootEn.status !== 'ok') { S.rows = rows; S.deps = []; return; }
 
   function addRow(it, depth, num) {
     const row = { it, depth, num, idx: rows.length, s: null, e: null, vk: 'task' };
     rows.push(row);
+    S.rowById.set(it.id, row);
     return row;
   }
   function visibleChildren(it) {
@@ -257,7 +278,13 @@ function flatten() {
           }
         }
       } else { // task
-        if (!own && sub) { row.vk = 'sum'; span = sub; } else { row.vk = 'task'; span = own; }
+        if (!own && sub) { row.vk = 'sum'; span = sub; }
+        else {
+          row.vk = 'task'; span = own;
+          const dd = (n.range && exprSpan(n.range)) || (n.date && exprSpan(n.date));
+          if (!dd && own) row.fc = true;                       // placed only by dependencies/duration
+          else if (dd && own) { const ds = n.range ? dd.s : (n.duration ? dd.e - n.duration.days + 1 : dd.e); if (ds !== own.s || dd.e !== own.e) row.decl = { s: ds, e: dd.e }; }
+        }
       }
       if (n && n.forecast && n.forecast.conflict) row.conflict = true;
       if (span) { row.s = span.s; row.e = span.e; agg = union(agg, span); }
@@ -284,12 +311,9 @@ function flatten() {
     const n = row.it && row.it.node;
     if (row.loading || !n || !n.keys || !n.keys.after) return;
     for (const v of n.keys.after) {
-      let file = row.it.entry.key, id = null;
-      const t = v.kind === 'link' ? v.target : v.text;
-      if (!t) continue;
-      if (t[0] === '^') id = t.slice(1);
-      else { const [f, h] = t.split('#'); if (f) file = resolveKey(row.it.entry.key, f); id = h || null; }
-      const pred = (id && idRow.get(file + '#' + id)) || fileRow.get(file);
+      const tg = afterTarget(row.it.entry.key, v);
+      if (!tg) continue;
+      const pred = (tg.id && idRow.get(tg.file + '#' + tg.id)) || fileRow.get(tg.file);
       if (pred && pred !== row) deps.push({ from: pred, to: row });
     }
   });
@@ -333,8 +357,11 @@ function segs(type, d0, d1, withYear) {
   }
   return out;
 }
+const ZOOMS = { week: 8, month: 2.5, quarter: 0.9, year: 0.3 };
+const zoomLevel = () => (S.ppd >= 4 ? 'week' : S.ppd >= 1.2 ? 'month' : S.ppd >= 0.5 ? 'quarter' : 'year');
 function tierTypes() {
   const p = S.ppd;
+  if (p < 0.5) return [['year']];
   if (p < 1.2) return [['year'], ['quarter']];
   if (p < 4) return [['quarter', true], ['month']];
   if (p < 14) return [['month', true], ['week']];
@@ -365,6 +392,42 @@ function durText(row) {
   const d = Math.round(row.e - row.s + 1);
   return d >= 14 && d % 7 === 0 ? d / 7 + 'w' : d + 'd';
 }
+const cbOf = (it) => (it.node ? it.node.checkbox : '');
+const stCls = (it) => { const c = cbOf(it); return c === 'done' ? 'st-done' : c === 'cancelled' ? 'st-cancelled' : 'st-open'; };
+const stText = (it) => { const c = cbOf(it); return c === 'done' ? 'done' : c === 'cancelled' ? 'cancelled' : c === 'open' ? 'open' : ''; };
+const isExpandable = (row) => !row.loading && (row.it.kind === 'subproject' ? !!row.it.target : row.it.children.length > 0);
+const isOpen = (row) => (row.it.kind === 'subproject' ? S.expanded.has(row.it.id) : !S.collapsed.has(row.it.id));
+
+// Why a row is flagged (conflict / bound exceeded).
+function reasonsOf(row) {
+  const out = [];
+  const it = row.it;
+  const f = it.kind === 'project' ? it.entry.proj.forecast : it.node && it.node.forecast;
+  if (row.conflict) {
+    const e = f && toDay(f.end), de = f && toDay(f.declared_end);
+    if (e != null && de != null) { const d = Math.round(e - de); out.push(`Forecast end ${fmt(e)} is ${d} day${d === 1 ? '' : 's'} after the declared end ${fmt(de)}`); }
+    else out.push('Forecast end is later than the declared end');
+  }
+  if (row.mism && row.commit && row.by != null) out.push(`Commitment ${fmt(row.commit.e)} is later than by: ${fmt(row.by)}`);
+  return out;
+}
+function declText(n) {
+  const d = [];
+  if (n.date) d.push(n.date.text); if (n.suffix_date) d.push(n.suffix_date.text); if (n.range) d.push(n.range.text); if (n.duration) d.push(n.duration.text);
+  return d.join('  ');
+}
+function tipText(row) {
+  const it = row.it, n = it.node;
+  const lines = [titleOf(it)];
+  const st = stText(it);
+  lines.push(`${row.vk === 'ms' ? 'milestone' : n ? n.kind : 'project'}${st ? ' · ' + st : ''}`);
+  if (row.s != null) lines.push(row.vk === 'ms' ? fmt(row.e) : `${fmt(row.s)} → ${fmt(row.e)} (${durText(row)})${row.fc ? ' forecast' : ''}`);
+  if (n && row.decl) lines.push(`Declared ${declText(n)}`);
+  if (row.vk === 'sub') lines.push(row.commit ? `Commitment ${row.commit.text} (${S.projects.get(it.target) && S.projects.get(it.target).status === 'ok' ? 'file' : 'lock'})` : 'No interface known');
+  if (row.vk === 'unk') lines.push('Could not load');
+  for (const r of reasonsOf(row)) lines.push('! ' + r);
+  return lines.join('\n');
+}
 
 function render() {
   const rows = S.rows, rb = els.rbody;
@@ -379,9 +442,8 @@ function render() {
 
   // header + gridlines (visible x window only)
   const d0 = S.min + (sl - 300) / S.ppd, d1 = S.min + (sl + rb.clientWidth + 300) / S.ppd;
-  const tt = tierTypes();
   let h = '', g = '';
-  tt.forEach(([type, wy], ti) => {
+  tierTypes().forEach(([type, wy], ti) => {
     for (const sg of segs(type, d0, d1, wy)) {
       const x = dx(sg.s), w = (sg.e - sg.s) * S.ppd;
       let label = sg.label;
@@ -390,42 +452,47 @@ function render() {
       g += `<div class="gl${ti === 0 ? ' major' : ''}" style="left:${x}px"></div>`;
     }
   });
+  h += `<div class="todaytag" style="left:${dx(TODAY + 0.5)}px" title="Today ${TODAY_ISO}"></div>`;
   els.rhinner.innerHTML = h; els.gridlines.innerHTML = g;
   els.today.style.left = dx(TODAY + 0.5) - 1 + 'px';
+  const zl = zoomLevel();
+  for (const b of els.zoomseg.children) b.classList.toggle('on', b.dataset.z === zl);
 
   // rows
   let L = '', T = '';
   for (let i = r0; i < r1; i++) {
     const row = rows[i];
     const odd = i & 1 ? ' odd' : '';
+    const hov = i === S.hover ? ' hov' : '';
     if (row.loading) {
-      L += `<div class="lrow loadrow${odd}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 22}px"><span class="spin">&#8635;</span> Loading&hellip;</div><div></div><div></div><div></div><div></div></div>`;
+      L += `<div class="lrow loadrow${odd}" role="row" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 10}px"><span class="spin">&#8635;</span> Loading&hellip;</div><div></div><div></div><div></div><div></div></div>`;
       T += `<div class="trow${odd}" style="top:${i * RH}px"></div>`;
       continue;
     }
-    const it = row.it, n = it.node;
+    const it = row.it;
     const sel = S.selId === it.id ? ' sel' : '';
-    const cb = n ? n.checkbox : '';
-    const cls = `k-${it.kind}${cb === 'done' ? ' done' : ''}${cb === 'cancelled' ? ' cancelled' : ''}${row.conflict ? ' conflict' : ''}${sel}${odd}`;
-    // toggle
-    let tog = '<span class="tog none"></span>', hasKids = false;
-    if (it.kind === 'subproject') {
-      const en = row.sub, ex = S.expanded.has(it.id);
-      hasKids = !!it.target;
-      if (hasKids) tog = `<span class="tog" data-act="tog">${ex && en && en.status === 'loading' ? '<span class="spin">&#8635;</span>' : ex ? '&#9662;' : '&#9656;'}</span>`;
-    } else if (it.children.length) {
-      tog = `<span class="tog" data-act="tog">${S.collapsed.has(it.id) ? '&#9656;' : '&#9662;'}</span>`;
+    const stc = it.kind === 'heading' || it.kind === 'project' ? '' : ' ' + stCls(it);
+    const cls = `k-${it.kind}${stc}${row.conflict ? ' conflict' : ''}${sel}${odd}${hov}`;
+    // expand / collapse
+    let tog = '<span class="tog none"></span>';
+    if (isExpandable(row)) {
+      const open = isOpen(row), busy = open && it.kind === 'subproject' && row.sub && row.sub.status === 'loading';
+      tog = `<span class="tog${open ? ' open' : ''}${busy ? ' busy' : ''}" data-act="tog" title="${open ? 'Collapse' : 'Expand'}">${busy ? '<span class="spin">&#8635;</span>' : ''}</span>`;
     }
     let ico = '';
-    if (it.kind === 'milestone') ico = '<span class="ico">&#9670;</span>';
-    else if (row.failed) ico = `<span class="ico warn" title="${esc(row.sub.err)}">&#9888;</span>`;
-    else if (it.kind === 'subproject') ico = `<span class="ico sub" title="${row.sub && row.sub.status === 'ok' ? 'Loaded sub-project' : 'Not loaded yet (commitment from pmd.lock)'}">${row.sub && row.sub.status === 'ok' ? '&#9635;' : '&#8615;'}</span>`;
+    if (it.kind === 'heading') ico = '<span class="st hd"></span>';
+    else if (it.kind === 'milestone') ico = `<span class="st diamond ${stCls(it)}"></span>`;
+    else if (row.failed) ico = `<span class="st sub warnic" title="${esc(row.sub.err)}"></span>`;
+    else if (it.kind === 'subproject') ico = `<span class="st sub ${row.sub && row.sub.status === 'ok' ? 'loaded ' : ''}${stCls(it)}" title="${row.sub && row.sub.status === 'ok' ? 'Loaded sub-project' : 'Not loaded: interface from the lock'}"></span>`;
+    else if (it.kind === 'task') ico = `<span class="st ${stCls(it)}"></span>`;
+    const why = reasonsOf(row);
+    const flag = why.length ? `<span class="flag" title="${esc(why.join('\n'))}">!</span>` : '';
     const num = S.wbs && row.num ? `<span class="num">${row.num}</span>` : '';
-    const focus = it.kind === 'subproject' && it.target ? '<button class="focus" data-act="focus" title="Open as top level (Ctrl/Cmd-click or double-click)">&#8982;</button>' : '';
-    const dateCell = (d) => esc(fmt(d));
-    L += `<div class="lrow ${cls}" data-i="${i}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 4}px">${tog}${ico}<span class="t" title="${esc(titleOf(it))}">${num}${esc(titleOf(it))}</span>${focus}</div>` +
-      `<div class="d">${dateCell(row.s)}</div><div class="d fin">${dateCell(row.e)}</div><div>${durText(row)}</div><div title="${esc(ownerText(row))}">${esc(ownerText(row))}</div></div>`;
-    T += `<div class="trow ${sel}${odd}" data-i="${i}" style="top:${i * RH}px">${bars(row)}</div>`;
+    const focus = it.kind === 'subproject' && it.target ? '<button class="focus" data-act="focus" title="Open as top level (Ctrl/Cmd-click or double-click)">Open</button>' : '';
+    const aria = `role="row" aria-level="${row.depth + 1}" aria-selected="${!!sel}"${isExpandable(row) ? ` aria-expanded="${isOpen(row)}"` : ''}`;
+    L += `<div class="lrow ${cls}" ${aria} data-i="${i}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 6}px">${tog}${ico}<span class="t" title="${esc(titleOf(it))}">${num}${esc(titleOf(it))}</span>${flag}${focus}</div>` +
+      `<div class="d">${esc(fmt(row.s))}</div><div class="d fin">${esc(fmt(row.e))}</div><div>${durText(row)}</div><div title="${esc(ownerText(row))}">${esc(ownerText(row))}</div></div>`;
+    T += `<div class="trow${sel}${odd}${hov}" data-i="${i}" style="top:${i * RH}px">${bars(row)}</div>`;
   }
   els.lspacer.innerHTML = L; els.trows.innerHTML = T;
   renderDeps(r0, r1);
@@ -435,34 +502,33 @@ function bars(row) {
   if (row.s == null) return '';
   const it = row.it, n = it.node, f = (n && n.forecast) || {};
   const x1 = dx(row.s), x2 = dx(row.e + 1), w = Math.max(x2 - x1, 3);
-  const cb = n ? n.checkbox : '';
-  const title = esc(`${titleOf(it)}\n${fmt(row.s)} → ${fmt(row.e)}`);
-  const conf = row.conflict ? ' conf' : '';
+  const tip = ` data-tip="${esc(tipText(row))}"`;
+  const sc = stCls(it) + (row.conflict ? ' conf' : '');
   const mism = row.mism ? ' mism' : '';
   let out = '';
   switch (row.vk) {
     case 'ms': {
       const cx = dx(row.e + 0.5);
-      out = `<div class="ms${cb === 'done' ? ' done' : ''}${cb === 'cancelled' ? ' cancelled' : ''}${conf}" style="left:${cx}px" title="${title}"></div>` +
-        `<span class="mlabel" style="left:${cx + 11}px">${fmt(row.e)}</span>`;
+      out = `<div class="ms ${sc}" style="left:${cx}px"${tip}></div><span class="mlabel" style="left:${cx + 12}px">${fmt(row.e)}</span>`;
       break;
     }
     case 'task':
-      out = `<div class="bar${cb === 'done' ? ' done' : ''}${cb === 'cancelled' ? ' cancelled' : ''}${conf}${mism}" style="left:${x1}px;width:${w}px" title="${title}">${cb === 'done' ? '<i class="prog" style="width:100%"></i>' : ''}</div>`;
+      out = `<div class="bar ${sc}${row.fc ? ' fc' : ''}${mism}" style="left:${x1}px;width:${w}px"${tip}></div>`;
+      if (row.decl) out += `<div class="declln" style="left:${dx(row.decl.s)}px;width:${Math.max(dx(row.decl.e + 1) - dx(row.decl.s), 3)}px" data-tip="Declared ${esc(declText(n))}"></div>`;
       break;
     case 'sum':
-      out = `<div class="sum${conf}${mism}" style="left:${x1}px;width:${w}px" title="${title}"></div>`;
+      out = `<div class="sum${row.conflict ? ' conf' : ''}${mism}" style="left:${x1}px;width:${w}px"${tip}></div>`;
       break;
     case 'sub':
-      out = `<div class="sub${conf}${mism}${row.openStart ? ' openstart' : ''}" style="left:${x1}px;width:${w}px" title="${title}${row.commit ? '\nCommitment: ' + esc(row.commit.text) : ''}">&#8615;</div>`;
-      for (const m of row.ifaceMs || []) out += `<div class="ms mini" style="left:${dx(m.d + 0.5)}px" title="${esc(m.id)}: ${fmt(m.d)}"></div>`;
+      out = `<div class="sub ${sc}${mism}${row.openStart ? ' openstart' : ''}" style="left:${x1}px;width:${w}px"${tip}>&#8615;</div>`;
+      for (const m of row.ifaceMs || []) out += `<div class="ms mini" style="left:${dx(m.d + 0.5)}px" data-tip="${esc(m.id)}: ${fmt(m.d)} (lock)"></div>`;
       break;
     case 'unk':
-      out = `<div class="unk" style="left:${x1}px;width:${w}px" title="${title}\nCould not load"></div>`;
+      out = `<div class="unk" style="left:${x1}px;width:${w}px"${tip}></div>`;
       break;
   }
-  if (row.conflict && f.declared_end) { const dd = toDay(f.declared_end); if (dd != null) out += `<div class="decl" style="left:${dx(dd + 1)}px" title="Declared end ${esc(f.declared_end)}"></div>`; }
-  if (row.mism && row.by != null) out += `<div class="decl" style="left:${dx(row.by + 1)}px;border-top-color:var(--warn)" title="Parent by: ${fmt(row.by)}"></div>`;
+  if (row.conflict && f.declared_end) { const dd = toDay(f.declared_end); if (dd != null) out += `<div class="decl" style="left:${dx(dd + 1)}px" data-tip="Declared end ${esc(f.declared_end)}"></div>`; }
+  if (row.mism && row.by != null) out += `<div class="decl w" style="left:${dx(row.by + 1)}px" data-tip="Parent by: ${fmt(row.by)}"></div>`;
   return out;
 }
 
@@ -497,7 +563,8 @@ function updateToolbar() {
     document.title = `${p.title} – projectmd`;
     els.ptitle.textContent = p.title;
     const chip = (k, v) => (v ? `<span class="chip">${k} <b>${esc(v)}</b></span>` : '');
-    els.pmeta.innerHTML = chip('Owner', p.owner && (p.owner.name || p.owner.text)) + chip('State', p.state) + chip('Commitment', p.commitment && p.commitment.text);
+    els.pmeta.innerHTML = chip('Owner', p.owner && (p.owner.name || p.owner.text)) + chip('State', p.state) + chip('Commitment', p.commitment && p.commitment.text) +
+      `<span class="chip" title="${esc(S.lockKey)}">${S.lockOk ? 'lock <b>' + esc(baseName(S.lockKey)) + '</b>' : 'no lock'}</span>`;
   }
   let c = '';
   S.crumbs.forEach((k, i) => {
@@ -510,57 +577,104 @@ function updateToolbar() {
 function banner(msg) { els.banner.hidden = !msg; els.banner.textContent = msg || ''; }
 
 // ---------- detail panel ----------
+const pubMilestones = (proj) => {
+  const out = [];
+  (function w(ns) { for (const n of ns) { if (n.id && (n.tags || []).includes('public') && n.date) out.push({ id: n.id, text: n.date.text, done: n.checkbox === 'done' }); w(n.children || []); } })(proj.nodes || []);
+  return out;
+};
+// Interface of a sub-project: from its loaded file when loaded, else from the lock.
+function ifaceOf(it) {
+  const en = it.target && S.projects.get(it.target), lk = it.target && S.lock.get(it.target);
+  const ok = en && en.status === 'ok';
+  const o = { loaded: ok, lock: lk || null, ms: [], src: '' };
+  if (ok) {
+    const p = en.proj;
+    o.commitment = p.commitment && p.commitment.text;
+    o.start = (lk && lk.start) || (p.forecast && p.forecast.start) || null;
+    o.ms = pubMilestones(p);
+    o.src = 'loaded file' + (lk ? `; lock seen ${lk.seen || '?'}` : '');
+  } else if (lk) {
+    o.commitment = dateText(lk.commitment); o.start = lk.start || null;
+    for (const [id, v] of Object.entries(lk.milestones || {})) o.ms.push({ id, text: v && v.replaced_by ? 'replaced by ^' + v.replaced_by : dateText(v) });
+    o.src = `lock (${baseName(S.lockKey)}), as of ${lk.seen || '?'}` + (en && en.status === 'error' ? ' - file unreachable' : ' - file not loaded');
+  } else o.src = en && en.status === 'error' ? 'unknown - unreachable and not in a lock' : 'unknown - not loaded and not in a lock';
+  return o;
+}
+
 function showDetail(row) {
-  if (!row || row.loading) { els.detail.hidden = true; return; }
+  if (!row || row.loading) { hideDetail(); return; }
   const it = row.it, n = it.node, en = it.entry;
   const dl = [];
   const add = (k, v) => { if (v != null && v !== '') dl.push(`<dt>${esc(k)}</dt><dd>${v}</dd>`); };
+  const person = (v) => esc(v.text);
+  const vals = (a) => (a || []).map((v) => esc(v.text)).join(', ');
+  const why = reasonsOf(row);
   let head, line = null;
   if (it.kind === 'project') {
-    const p = en.proj;
-    head = `<h2>${esc(p.title)}</h2><span class="badge">project</span>${p.state ? `<span class="badge">${esc(p.state)}</span>` : ''}`;
-    add('Owner', esc(p.owner && (p.owner.text || p.owner.name)));
-    add('Stakeholders', esc((p.stakeholders || []).map((s) => s.text).join(', ')));
+    const p = en.proj, pf = p.forecast || {};
+    head = `<h2>${esc(p.title)}</h2><span class="badge">project</span>${p.state ? `<span class="badge">${esc(p.state)}</span>` : ''}${pf.conflict ? '<span class="badge red">conflict</span>' : ''}`;
     add('Commitment', esc(p.commitment && p.commitment.text));
+    add('Forecast start', esc(pf.start || ''));
+    add('Forecast end', esc(pf.end || ''));
+    add('Duration', durText(row));
+    add('Owner', esc(p.owner && p.owner.text));
+    add('Stakeholders', (p.stakeholders || []).map(person).join(', '));
     add('ID', esc(p.id));
-    if (p.forecast) { add('Forecast', esc(`${p.forecast.start || '?'} → ${p.forecast.end || '?'}`)); }
+    const sfx = p.suffix || {};
+    add('Declared', esc([sfx.date, sfx.range, sfx.duration].filter(Boolean).map((x) => x.text).join('  ')));
+    add('Tags', esc((sfx.tags || []).map((t) => '#' + t).join(' ')));
+    for (const [k, v] of Object.entries(p.header || {})) if (!['owner', 'stakeholders', 'commitment', 'state', 'id'].includes(k.toLowerCase())) add(k, esc(v));
+    for (const [k, v] of Object.entries(sfx.keys || {})) add(k, vals(v));
   } else {
     const f = n.forecast || {};
-    const state = n.checkbox === 'done' ? 'done' : n.checkbox === 'cancelled' ? 'cancelled' : n.checkbox === 'open' ? 'open' : '';
-    head = `<h2>${esc(titleOf(it))}</h2><span class="badge">${esc(n.kind)}</span>${state ? `<span class="badge">${state}</span>` : ''}` +
-      (f.conflict ? '<span class="badge red">conflict</span>' : '') + (row.mism ? '<span class="badge warn">exceeds parent by:</span>' : '');
+    const st = stText(it);
+    head = `<h2>${esc(titleOf(it))}</h2><span class="badge">${esc(n.kind)}</span>${st ? `<span class="badge b-${st === 'done' ? 'done' : st === 'open' ? 'open' : ''}">${st}</span>` : ''}` +
+      (f.conflict ? '<span class="badge red">conflict</span>' : '') + (row.mism ? '<span class="badge warn">exceeds by:</span>' : '');
     line = n.line;
-    const decl = [];
-    if (n.date) decl.push(n.date.text); if (n.range) decl.push(n.range.text); if (n.duration) decl.push(n.duration.text);
-    add('Declared', esc(decl.join('  ')));
-    add('Forecast', esc(`${f.start || '?'} → ${f.end || '?'}`));
-    if (f.declared_end) add('Declared end', esc(f.declared_end) + (f.conflict ? ' <span class="badge red">forecast later</span>' : ''));
+    add('Declared', esc(declText(n)));
+    add('Forecast start', esc(f.start || (row.s != null && !row.fc ? fmt(row.s) + ' (shown)' : '')));
+    add('Forecast end', esc(f.end || (row.e != null && !row.fc ? fmt(row.e) + ' (shown)' : '')));
+    if (f.declared_end) add('Declared end', esc(f.declared_end));
+    add('Duration', durText(row));
+    if (n.kind === 'heading') add('Items', String(n.children.length));
     const k = n.keys || {};
-    const vals = (a) => esc((a || []).map((v) => v.text).join(', '));
+    if (k.after) add('After', k.after.map((v) => {
+      const tg = afterTarget(en.key, v), t = tg && itemOfTarget(tg);
+      const label = esc(v.text);
+      return t ? `<a href="#" data-sel="${esc(t.id)}" title="Select ${esc(titleOf(t))}">${label}</a>` : `<span title="Not loaded">${label}</span>`;
+    }).join(', '));
+    add('By', vals(k.by));
+    add('Tags', esc((n.tags || []).map((t) => '#' + t).join(' ')));
     add('Owner', vals(k.owner) || esc(ownerText(row)));
     add('Approvers', vals(k.approver));
-    add('After', vals(k.after));
-    add('By', vals(k.by));
-    for (const key of Object.keys(k)) if (!['owner', 'approver', 'after', 'by'].includes(key)) add(key, vals(k[key]));
-    add('Tags', esc((n.tags || []).map((t) => '#' + t).join(' ')));
+    const inKeys = ['after', 'by', 'owner', 'approver'];
+    for (const key of Object.keys(k)) if (!inKeys.includes(key)) add(key, vals(k[key]));
     add('ID', n.id ? '^' + esc(n.id) : '');
     if (it.kind === 'subproject') {
-      const c = row.commit;
-      add('Commitment', c ? esc(c.text) + (row.sub && row.sub.status === 'ok' ? '' : ' (from pmd.lock)') : '');
-      add('Link', it.target ? `<a href="${esc(urlOf(it.target))}" target="_blank" rel="noopener">${esc(it.target)}</a>` : '');
-      if (row.sub && row.sub.status === 'ok') { const p = row.sub.proj; add('Owner', esc(p.owner && p.owner.text)); add('State', esc(p.state)); }
+      const ifc = ifaceOf(it);
+      add('Link', it.target ? `<a href="#" data-md="${esc(it.target)}">${esc(it.target)}</a>` : '');
       if (row.failed) add('Load error', esc(row.sub.err));
-      if (row.mism) add('Bound', `child commitment ${esc(fmt(row.commit.e))} is later than <b>by:</b> ${esc(fmt(row.by))}`);
+      if (row.sub && row.sub.status === 'ok') add('State', esc(row.sub.proj.state));
+      dl.push('<dt></dt><dd><b>Interface</b></dd>');
+      add('Source', esc(ifc.src));
+      add('Commitment', esc(ifc.commitment));
+      add('Start', esc(ifc.start));
+      if (ifc.lock && ifc.lock.by) add('Need-by', esc(dateText(ifc.lock.by) || ifc.lock.by));
+      if (ifc.lock && ifc.lock.late) add('Late', `<span class="late">forecast ${esc(ifc.lock.late)}, after its Commitment</span>`);
+      if (ifc.lock) { add('Project ID', esc(ifc.lock.id)); add('Hash', esc(ifc.lock.hash)); }
+      add('Public milestones', ifc.ms.length ? '<ul>' + ifc.ms.map((m) => `<li>${esc(m.id)}: ${esc(m.text)}</li>`).join('') + '</ul>' : '');
     }
   }
   const diags = (en.proj.diagnostics || []).filter((d) => (it.kind === 'project' ? true : d.line === line));
-  let html = `<button class="x" id="dclose" title="Close">&times;</button>${head}<dl>${dl.join('')}</dl>`;
-  html += `<h3>Source</h3><div><a href="${esc(urlOf(en.key))}" target="_blank" rel="noopener">${esc(en.key)}${line ? ':' + line : ''}</a></div>`;
-  if (diags.length) {
-    html += '<h3>Diagnostics</h3>' + diags.map((d) => `<div class="diag ${esc(d.severity)}"><b>${esc(d.code)}</b>${d.line ? ' (line ' + d.line + ')' : ''}<br>${esc(d.message)}</div>`).join('');
-  }
-  els.detail.innerHTML = html; els.detail.hidden = false;
+  let html = `<button class="x" id="dclose" title="Close (Esc)" aria-label="Close">&times;</button>${head}`;
+  if (why.length) html += why.map((r) => `<div class="reason">${esc(r)}</div>`).join('');
+  html += `<dl>${dl.join('')}</dl>`;
+  html += `<h3>Location</h3><div><a href="#" data-md="${esc(en.key)}"${line ? ` data-line="${line}"` : ''}>${esc(en.key)}${line ? ':' + line : ''}</a></div>`;
+  if (diags.length) html += '<h3>Diagnostics</h3>' + diags.map((d) => `<div class="diag ${esc(d.severity)}"><b>${esc(d.code)}</b>${d.line ? ' (line ' + d.line + ')' : ''}<br>${esc(d.message)}</div>`).join('');
+  els.detail.innerHTML = html;
+  if (els.detail.hidden) { els.detail.hidden = false; schedule(); }
 }
+function hideDetail() { if (!els.detail.hidden) { els.detail.hidden = true; schedule(); } S.detailOpen = false; }
 
 // ---------- actions ----------
 function rebuild() {
@@ -572,6 +686,7 @@ function rebuild() {
   }
   updateToolbar();
   render();
+  if (S.detailOpen) { const r = S.rowById.get(S.selId); if (r) showDetail(r); }
 }
 function fit() {
   const w = Math.max(300, els.rbody.clientWidth - 20);
@@ -612,15 +727,43 @@ function focusRow(row) {
   navigate(it.target, [...S.crumbs, S.rootKey], true);
 }
 
+function scrollToRow(idx) {
+  const rb = els.rbody, top = idx * RH;
+  if (top < rb.scrollTop) rb.scrollTop = top;
+  else if (top + RH > rb.scrollTop + rb.clientHeight) rb.scrollTop = top + RH - rb.clientHeight;
+}
+function selectRow(row, scroll) {
+  S.selId = row.it.id; S.detailOpen = true;
+  if (scroll) scrollToRow(row.idx);
+  showDetail(row); render();
+}
+// Select an item that may be hidden (collapsed ancestors, unexpanded sub-project): reveal it first.
+function selectItem(it) {
+  for (let cur = it; cur;) {
+    if (cur.parent) { S.collapsed.delete(cur.parent.id); cur = cur.parent; continue; }
+    if (cur.entry.key === S.rootKey) break;
+    const via = S.linkItem.get(cur.entry.key);
+    if (!via) break;
+    S.expanded.add(via.id); cur = via;
+  }
+  S.selId = it.id; S.detailOpen = true;
+  rebuild();
+  const row = S.rowById.get(it.id);
+  if (row) { scrollToRow(row.idx); render(); }
+}
+
 async function navigate(key, crumbs, push) {
   const token = ++S.navToken;
   S.rootKey = key; S.crumbs = crumbs;
   S.collapsed = new Set(); S.expanded = new Set(); S.selId = null;
+  S.projects = new Map(); S.linkItem = new Map(); S.idItem = new Map(); S.rowById = new Map();
   S.rawMin = null; S.rangeSet = false; S.needFit = true;
-  els.detail.hidden = true;
+  hideDetail();
   if (push) history.pushState({ crumbs }, '', '?root=' + urlParam(key));
   banner('');
   S.rows = []; updateToolbar(); render();
+  await loadLock(key);
+  if (token !== S.navToken) return;
   const en = await loadProject(key);
   if (token !== S.navToken) return;
   if (en.status === 'error') { banner(`Could not load ${key}: ${en.err}`); updateToolbar(); return; }
@@ -645,7 +788,7 @@ function onClick(ev) {
   if (act && act.dataset.act === 'tog') { toggle(row); return; }
   if (act && act.dataset.act === 'focus') { focusRow(row); return; }
   if ((ev.ctrlKey || ev.metaKey) && row.it.kind === 'subproject') { ev.preventDefault(); focusRow(row); return; }
-  S.selId = row.it.id; showDetail(row); render();
+  selectRow(row, false);
 }
 function onDbl(ev) {
   if (ev.target.closest('[data-act]')) return;
@@ -653,8 +796,107 @@ function onDbl(ev) {
   if (row && !row.loading) focusRow(row);
 }
 [els.lspacer, els.trows].forEach((e) => { e.addEventListener('click', onClick); e.addEventListener('dblclick', onDbl); });
-els.detail.addEventListener('click', (e) => { if (e.target.id === 'dclose') els.detail.hidden = true; });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') els.detail.hidden = true; });
+els.detail.addEventListener('click', (e) => {
+  if (e.target.id === 'dclose') hideDetail();
+  const md = e.target.closest('[data-md]');
+  if (md) { e.preventDefault(); openMd(md.dataset.md, +md.dataset.line || 0); return; }
+  const a = e.target.closest('[data-sel]');
+  if (a) { e.preventDefault(); const it = findItem(a.dataset.sel); if (it) selectItem(it); }
+});
+function findItem(id) {
+  for (const en of S.projects.values()) {
+    if (en.status !== 'ok') continue;
+    const st = [en.root];
+    while (st.length) { const x = st.pop(); if (x.id === id) return x; st.push(...x.children); }
+  }
+  return null;
+}
+
+// hover: highlight the row in both table and chart; tooltip on bars
+function setHover(i) {
+  if (i === S.hover) return;
+  S.hover = i;
+  for (const e of document.querySelectorAll('.hov')) e.classList.remove('hov');
+  if (i >= 0) for (const e of document.querySelectorAll(`[data-i="${i}"]`)) e.classList.add('hov');
+}
+[els.lspacer, els.trows].forEach((e) => {
+  e.addEventListener('mouseover', (ev) => { const r = ev.target.closest('[data-i]'); setHover(r ? +r.dataset.i : -1); });
+  e.addEventListener('mouseleave', () => { setHover(-1); els.tip.hidden = true; });
+});
+els.trows.addEventListener('mousemove', (ev) => {
+  const t = ev.target.closest('[data-tip]');
+  if (!t) { els.tip.hidden = true; return; }
+  const lines = t.dataset.tip.split('\n');
+  els.tip.innerHTML = lines.map((l, i) => (l.startsWith('! ') ? `<div class="r">${esc(l.slice(2))}</div>` : i === 0 ? `<b>${esc(l)}</b>` : `<div>${esc(l)}</div>`)).join('');
+  els.tip.hidden = false;
+  const w = els.tip.offsetWidth, h = els.tip.offsetHeight;
+  els.tip.style.left = Math.min(ev.clientX + 14, innerWidth - w - 8) + 'px';
+  els.tip.style.top = (ev.clientY + 18 + h > innerHeight ? ev.clientY - h - 10 : ev.clientY + 18) + 'px';
+});
+
+// markdown view of a project file
+let mdKey = null;
+async function openMd(key, line) {
+  mdKey = key;
+  els.mdtitle.textContent = key; els.mdraw.href = urlOf(key);
+  els.mdopen.hidden = !/\.md$/i.test(key.split('?')[0]);
+  els.mdbody.innerHTML = '<p class="dim">Loading&hellip;</p>'; els.mdview.hidden = false;
+  try {
+    const text = await fetchText(key);
+    if (mdKey !== key) return;
+    els.mdbody.innerHTML = renderMarkdown(text);
+    if (line) {
+      let best = null;
+      for (const e of els.mdbody.querySelectorAll('[data-line]')) if (+e.dataset.line <= line) best = e; else break;
+      if (best) { best.classList.add('hl'); best.scrollIntoView({ block: 'center' }); }
+    } else els.mdbody.scrollTop = 0;
+  } catch (e) { els.mdbody.innerHTML = `<p class="dim">Could not load: ${esc(e.message)}</p>`; }
+}
+function closeMd() { els.mdview.hidden = true; mdKey = null; }
+els.mdclose.onclick = closeMd;
+els.mdopen.onclick = () => { const k = mdKey; closeMd(); if (k && k !== S.rootKey) navigate(k, [...S.crumbs, S.rootKey], true); };
+els.mdbody.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-md]'); if (!a) return;
+  e.preventDefault();
+  const [p, hash] = a.dataset.md.split('#');
+  if (p) openMd(resolveKey(mdKey, p), 0); else if (hash) { const h = document.getElementById(hash); if (h) h.scrollIntoView(); }
+});
+
+// keyboard: arrows move, Enter/Space toggle, Left/Right collapse/expand, Esc closes details
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, select')) return;
+  if (!els.mdview.hidden) { if (e.key === 'Escape') closeMd(); return; }
+  if (e.key === 'Escape') { hideDetail(); return; }
+  if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest('button, a')) return;
+  const rows = S.rows;
+  const cur = rows.findIndex((r) => r.it && r.it.id === S.selId);
+  const row = cur >= 0 ? rows[cur] : null;
+  const step = (from, d) => { for (let i = from + d; i >= 0 && i < rows.length; i += d) if (!rows[i].loading) return i; return -1; };
+  const go = (i) => { if (i >= 0) selectRow(rows[i], true); };
+  switch (e.key) {
+    case 'ArrowDown': go(cur < 0 ? step(-1, 1) : step(cur, 1)); break;
+    case 'ArrowUp': go(cur < 0 ? step(rows.length, -1) : step(cur, -1)); break;
+    case 'Home': go(step(-1, 1)); break;
+    case 'End': go(step(rows.length, -1)); break;
+    case 'ArrowRight':
+      if (!row) return;
+      if (isExpandable(row) && !isOpen(row)) toggle(row);
+      else if (isExpandable(row) && rows[cur + 1] && rows[cur + 1].depth > row.depth) go(step(cur, 1));
+      break;
+    case 'ArrowLeft': {
+      if (!row) return;
+      if (isExpandable(row) && isOpen(row)) toggle(row);
+      else { let i = cur - 1; while (i >= 0 && (rows[i].loading || rows[i].depth >= row.depth)) i--; go(i); }
+      break;
+    }
+    case 'Enter': case ' ':
+      if (!row) return;
+      if (isExpandable(row)) toggle(row); else selectRow(row, true);
+      break;
+    default: return;
+  }
+  e.preventDefault();
+});
 
 els.rbody.addEventListener('scroll', schedule);
 els.lbody.addEventListener('wheel', (e) => { e.preventDefault(); els.rbody.scrollTop += e.deltaY; els.rbody.scrollLeft += e.deltaX; }, { passive: false });
@@ -665,6 +907,7 @@ els.rbody.addEventListener('wheel', (e) => {
 }, { passive: false });
 window.addEventListener('resize', schedule);
 els.zin.onclick = () => zoom(1.4); els.zout.onclick = () => zoom(1 / 1.4); els.zfit.onclick = fit;
+els.zoomseg.addEventListener('click', (e) => { const b = e.target.closest('[data-z]'); if (b) zoom(ZOOMS[b.dataset.z] / S.ppd); });
 els.ztoday.onclick = () => { els.rbody.scrollLeft = dx(TODAY) - els.rbody.clientWidth / 3; render(); };
 els.wbs.onchange = () => { S.wbs = els.wbs.checked; render(); };
 els.openform.onsubmit = (e) => {
@@ -693,7 +936,7 @@ window.addEventListener('popstate', (e) => navigate(rootFromLocation(), (e.state
   });
   window.addEventListener('mouseup', () => {
     if (!drag) return; drag = false; els.split.classList.remove('drag');
-    try { localStorage.setItem('pmd.leftw', parseInt(els.left.style.width || getComputedStyle(els.left).width, 10)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('pmd.leftw', parseInt(getComputedStyle(els.left).width, 10)); } catch (e) { /* ignore */ }
   });
 })();
 

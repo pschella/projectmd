@@ -253,3 +253,22 @@ pub struct Options {
     pub states: Vec<String>,
     pub people: BTreeMap<String, Person>,
 }
+
+/// Suggested fix for a diagnostic code (FORMAT §12, "Suggested fix"). `None` when the table has none.
+pub fn fix_hint(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "E-SYNTAX" => "Give the key a value or close the bracket",
+        "E-REF-LOCAL" => "Correct the id, or add `^id` to the target item",
+        "E-REF-PUBLIC" => "Ask the owner to add `#public`, or depend on the whole project",
+        "E-CYCLE" => "Remove one sub-project link",
+        "E-CONFLICT" => "Move the declared date, shorten the estimate, or ask the container to move its `by:`",
+        "W-NO-OWNER" => "Add `- Owner: Name <email>` under the title",
+        "E-DATE" => "Write a valid date, rough date or range",
+        "E-DUP-ID" => "Rename one of them",
+        "E-REF-MISSING" => "Fix the path, or restore the file",
+        "E-BOUND" => "Agree a new date: the parent moves its `by:` or the child's owner moves its Commitment",
+        "W-STALE-LOCK" => "Refresh the lock with `pmd lock`",
+        "W-UNKNOWN-HANDLE" => "Add it to `.pmd/profile.md`, or write `Name <email>`",
+        _ => return None,
+    })
+}

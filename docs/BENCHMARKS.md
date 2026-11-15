@@ -16,7 +16,7 @@ another branch.
 
 ## Top-level view (`pmd tree ROOT.md --depth 1`)
 
-Under 10 ms at every size, including 111,111 files. With a `pmd.lock` the view also shows each
+Under 10 ms at every size, including 111,111 files. With its lock file the view also shows each
 child's commitment and public milestones, still without opening any child file.
 
 ## Findings

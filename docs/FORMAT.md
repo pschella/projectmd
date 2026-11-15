@@ -217,23 +217,54 @@ A removed or renamed public milestone leaves a cancelled tombstone, `- [-] … #
 
 ## 9 Lock file
 
-`pmd.lock` is a sidecar written only by tools, one per repository root. For each linked project
-it records location, id, hash, Commitment, public milestones with dates, and the date last seen.
-Example, for the Aurora battery pack and the supplier's inverter:
+A project that links other projects may have a **lock file**: a sidecar with the same name and
+the extension `.lock` (`aurora.md` → `aurora.lock`), written only by tools. No project is special:
+every file can have its own lock, so any sub-project can be moved elsewhere, lock and all, and is
+then a top-level project in every respect.
+
+A large project is usually **distributed**: groups of sub-projects live in different places
+(repositories, servers, supplier portals), are kept by different teams with different tools, and
+show the larger project only their interfaces. What crosses each boundary is a **contract**: the
+parent's need-by date (`by:` on the link) and the child's promise (its Commitment and public
+milestones). The lock records the contracts with each **directly** linked project and nothing
+more: location, id, hash, `by`, Commitment, start, public milestones with dates, the date last
+seen and, if the child cannot keep its promise, `late` (its forecast end). It never records
+tasks, people or other internals. Example, for the Aurora battery pack and the supplier's
+inverter:
 
 ```text
-# pmd.lock — written by tooling; do not edit
-powertrain/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=4c1e9a  commitment=2027-11-30  seen=2026-11-14
+# aurora.lock — written by tooling; do not edit
+powertrain/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=4c1e9a  by=2027-12-15  commitment=2027-11-30  late=2028-01-21  seen=2026-11-14
     design-freeze   2027-06-30
     validated       2027-11-30
 https://supplier-portal.example.net/projects/inv-2207.md  id=supplier.example.net/inverters/inv-2207  hash=b07a3f  commitment=2027-09-30  seen=2026-11-12
     a-samples       2027-06-30
 ```
 
-- A top-level view renders from one file and its lock entries, with no fetches. An unreachable
-  child shows its last known interface, marked "unknown as of <date>".
-- A changed hash or interface is the change notification. The lock's git history is a history of
-  every commitment the project depended on. Exact syntax **(open)**.
+A contract **holds** if the promise is no later than the need-by date, is **broken** if it is
+later (an error, `E-BOUND`, §12), and is **at risk** if the child is `late` past the need-by date.
+
+**Scaling works like Go compilation.** If A links B and B links C, then everything A needs from C
+is already folded into B's contract with A. B's tools schedule B against B's contracts with its
+children, treating a late child as finishing at its `late` date. If that pushes B past its own
+Commitment, B is late. A's tools read only B, never C:
+
+- **Refreshing** `A.lock` reads `A.md`, each directly linked file and that file's own lock, and
+  nothing deeper. The cost depends on the number of direct links, not the size of the graph.
+- **Reading** needs no fetches: any view of A draws from `A.md` and `A.lock` alone. Expanding a
+  sub-project loads that file and its lock, one level at a time. An unreachable project shows
+  its last known contract, marked "unknown as of <date>".
+- **Risk propagates, internals do not.** When C slips, B becomes late, and the next refresh of
+  `A.lock` shows A's contract with B at risk. A sees that, but not why. The reason lives in B and
+  is B's to show.
+- **Each owner decides what is visible.** Without a published `B.lock`, A still has B's promise,
+  but whether B is late is unknown.
+- **Checking** works the same way. `pmd check FILE` validates FILE against its own lock and its
+  direct links, and warns when the lock is stale. `pmd check --deep FILE` validates the whole
+  graph reachable from FILE, for when that is wanted and reachable.
+- If a direct link cannot be read, its previous entry is kept as it was.
+- A changed hash or contract is the change notification. The lock's history is a history of
+  every contract the project depended on.
 
 ## 10 Profiles, gates and extensions
 
@@ -262,16 +293,20 @@ machines, dependency types other than finish-to-start, ticket import.
 
 E = error, W = warning. The message is what a person sees.
 
-| # | Sev | Rule | Message | Suggested fix |
-|---|---|---|---|---|
-| 1 | E | Syntax error: a key with no value, an unclosed `<…>` or `[text](target)`, a single-valued key repeated | "Line 14: `owner:` has no value" | Give the key a value or close the bracket |
-| 2 | E | Dangling local reference | "Line 9: no item `^dyno-testin` in this file" | Correct the id, or add `^id` to the target item |
-| 3 | E | Reference to a non-public item | "`battery-pack.md#validated` is not `#public`" | Ask the owner to add `#public`, or depend on the whole project. An unreachable target is a W |
-| 4 | E | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
-| 5 | E | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
-| 6 | W | Stale lock: file hash differs from `pmd.lock` | "`pmd.lock` is out of date for `battery-pack.md`" | Refresh the lock with the tool |
-| 7 | W | Missing `Owner` | "`Owner` is not set" | Add `- Owner: Name <email>` under the title |
-| 8 | W | Unknown `@handle` | "`@jan` is not in the people registry; kept as written" | Add it to `.pmd/profile.md`, or write `Name <email>` |
+| Code | Rule | Message | Suggested fix |
+|---|---|---|---|
+| E-SYNTAX | Syntax error: a key with no value, an unclosed `<…>` or `[text](target)`, a single-valued key repeated | "Line 14: `owner:` has no value" | Give the key a value or close the bracket |
+| E-DATE | Invalid date | "Line 7: `2027-02-30` is not a date" | Write a valid date, rough date or range |
+| E-DUP-ID | The same `^id` twice in a file | "`^audit` is defined twice" | Rename one of them |
+| E-REF-LOCAL | Dangling local reference | "Line 9: no item `^dyno-testin` in this file" | Correct the id, or add `^id` to the target item |
+| E-REF-PUBLIC | Reference to a non-public item | "`battery-pack.md#validated` is not `#public`" | Ask the owner to add `#public`, or depend on the whole project |
+| E-REF-MISSING | Linked local file cannot be read | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
+| E-CYCLE | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
+| E-CONFLICT | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
+| E-BOUND | Broken contract: a child's promise is later than the parent's `by:` (§9) | "`Powertrain` commits to 2028-03-31, after the bound `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child's owner moves its Commitment |
+| W-STALE-LOCK | Stale lock: file hash differs from the lock | "`aurora.lock` is out of date for `battery-pack.md`" | Refresh the lock with `pmd lock` |
+| W-NO-OWNER | Missing `Owner` | "`Owner` is not set" | Add `- Owner: Name <email>` under the title |
+| W-UNKNOWN-HANDLE | Unknown `@handle` | "`@jan` is not in the people registry; kept as written" | Add it to `.pmd/profile.md`, or write `Name <email>` |
 
 ## 13 Informal grammar
 
@@ -298,3 +333,34 @@ coarse     = YYYY , "-" , ( MM | "Q" , [1-4] | "H" , [1-2] | "W" , WW ) ;
 ref        = item_id | target , "#" , name ;
 target     = relative_path | absolute_URL ;
 ```
+
+## 14 Working with tools and agents
+
+Most plans will be written, checked and changed by AI agents as well as people. The format
+stays plain markdown for both; these conventions make machine edits small, safe and traceable.
+
+- **Canonical form.** `pmd fmt FILE` rewrites a file into one canonical spelling without
+  changing its meaning (parsing before and after gives the same result; prose is untouched):
+  `- ` bullets indented two spaces per level; one space after the checkbox; suffix parts
+  separated from the title and from each other by two spaces, in the order range or duration,
+  tags, keys (`after`, `by`, `owner`, `approver`, then others alphabetically), `^id` last; no
+  column alignment; no trailing spaces; one blank line before a heading; a final newline.
+  People may write freely. Tools and agents write canonical form, so every edit is a
+  one-line diff and concurrent edits rarely conflict.
+- **Ids on demand.** `pmd fmt --ids` gives every item without an `^id` a readable one made
+  from its title (lowercase, hyphenated, at most four words, unique in the file). Existing ids
+  never change. Agents refer to items by id, not by title.
+- **Safe concurrent edits.** A file's hash (as in the lock) is its version. A tool or agent
+  reads a file and its hash, edits it, and writes only if the hash is still the same;
+  otherwise it reads again. Writing commands take `--if-hash HASH`.
+- **Diagnostics an agent can act on.** `pmd check` prints one line per finding,
+  `path:line: SEV CODE message`, followed by an indented `fix:` line with the suggested fix
+  from §12. Codes are stable. With `--json`, `pmd check` and `pmd schedule` print the same
+  information as JSON. Tool output may be JSON; project files are always markdown.
+- **An entry point for agents.** A folder of plans may hold an `AGENTS.md` that points to the
+  cheat sheet and states local rules. Agents read it first.
+- **Edit only what you own.** To ask another project for a date, write `by:` on your own link
+  to it; never change its Commitment or milestones. Never write forecasts or lock files.
+- **Reasons travel with changes.** When a change moves a Commitment, a `by:` or a public
+  milestone, the commit message says why. The lock diff shows what changed; the commit says why.
+

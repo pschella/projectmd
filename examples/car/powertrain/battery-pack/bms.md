@@ -20,7 +20,7 @@ backlog.
 
 ## Work
 
-- [ ] Cell balancing algorithm  6w  owner: @ruben  after: ^soc-v1
+- [ ] Cell balancing algorithm  6w  after: ^soc-v1  owner: @ruben
 - [ ] Isolation monitoring  4w  after: ^hw-release
 - [ ] Charger interface  after: [Charger interface spec][cis]
 - [ ] Functional safety case  2027-04-01 .. 2027-09-15  owner: @ruben

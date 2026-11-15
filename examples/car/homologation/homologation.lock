@@ -1,0 +1,9 @@
+# homologation.lock — tool-generated snapshot; rebuild with `pmd lock homologation.md`.
+../powertrain/powertrain.md  hash=5595742591e5a7b0  commitment=2028-02-15  start=2026-10-01  late=2028-03-31  seen=2026-11-15
+    concept-frozen  2027-05-31
+    validated  2028-02-15
+../software/software.md  hash=3ce237c976a8eff8  commitment=2028-Q3  start=2027-04-01  seen=2026-11-15
+    feature-complete  2028-Q2
+    sop-release  2028-08-31
+crash-tests.md  hash=097040d690c8201e  by=2028-06-30  commitment=2028-06-15  start=2027-09-30  seen=2026-11-15
+    pass  2028-06-15

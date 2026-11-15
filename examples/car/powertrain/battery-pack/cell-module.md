@@ -21,8 +21,8 @@ The cell supplier's gates are tracked in a sub-project one level further down.
 ## Work
 
 - [x] Module layout study  2026-10-12 .. 2026-11-06  owner: @jonas
-- [ ] Busbar and sensing harness design  6w  owner: @jonas  after: ^module-concept
-- [ ] Module housing design  6w  owner: @jonas  after: ^module-concept
+- [ ] Busbar and sensing harness design  6w  after: ^module-concept  owner: @jonas
+- [ ] Module housing design  6w  after: ^module-concept  owner: @jonas
 - [ ] Cell-to-module thermal test  4w  after: ^sign-off  ^thermal-test
 - [ ] [Supplier qualification](cell-module/supplier-qualification.md)  by: 2027-04-15
 - [ ] Production readiness review  1w  after: ^thermal-test  after: [Supplier qualified][sq-q]

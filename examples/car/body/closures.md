@@ -18,8 +18,8 @@ Doors, tailgate and bonnet: hinges, latches, seals and the durability checks beh
 
 ## Work
 
-- [ ] Hinge and latch kinematics  6w  owner: @lars  after: ^concept  ^kinematics
-- [ ] Seal and NVH study  5w  owner: @lars  after: ^concept
+- [ ] Hinge and latch kinematics  6w  after: ^concept  owner: @lars  ^kinematics
+- [ ] Seal and NVH study  5w  after: ^concept  owner: @lars
 - [ ] Door-check durability test  8w  after: ^kinematics
 - [ ] Latch supplier nomination  after: ../aurora.md#design-freeze
 - [ ] Tailgate gas-spring sourcing  2027-Q2  ticket: BODY-212

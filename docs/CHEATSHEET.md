@@ -47,4 +47,11 @@ Rules:
 2. Sub-bullets `key: value` under an item set its keys; the H1 sub-bullets are the header.
 3. Links are real paths or URLs. Never write a forecast; write only declared dates.
 4. Cross-file references must target `#public` milestones.
-5. Do not edit `pmd.lock`; tools write it.
+5. Do not edit `*.lock` files; tools write them.
+
+Rules for agents (FORMAT §14):
+6. Read `AGENTS.md` if the folder has one. Refer to items by `^id`; run `pmd fmt --ids` if needed.
+7. Edit only files you own. Ask for a date with `by:` on your own link; never edit a Commitment elsewhere.
+8. Write canonical form (`pmd fmt`), use `--if-hash` to avoid overwriting others, and finish with
+   `pmd check` clean. Say why in the commit message when a Commitment, `by:` or public milestone moves.
+

@@ -14,7 +14,7 @@ the cell module (which has a supplier plan under it) and the battery management 
 - [x] 2026-10-31 Cell chemistry selected  ^chemistry
 - [ ] 2027-03-31 Cell supplier nominated  ^cell-nomination
   - approver: @purchasing-board
-- [-] 2027-06-15 Pack design freeze  #public  ^pack-design-freeze  replaced-by: ^pack-design-release
+- [-] 2027-06-15 Pack design freeze  #public  replaced-by: ^pack-design-release  ^pack-design-freeze
 - [ ] 2027-06-15 Pack design release  #public  ^pack-design-release
 - [ ] 2027-09-30 B-samples available  #public  ^b-samples
 - [ ] 2027-11-30 Pack validated  #public  ^validated

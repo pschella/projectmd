@@ -23,7 +23,7 @@ the van plan.
 
 - [x] Site selection study  2026-09-01 .. 2026-10-30  owner: @omar
 - [ ] Brownfield survey  2027-Q1  owner: @omar
-- [ ] Plant layout  8w  owner: @omar  after: ../aurora.md#design-freeze
+- [ ] Plant layout  8w  after: ../aurora.md#design-freeze  owner: @omar
 - [ ] Battery pack assembly cell  16w  after: ^capex  after: [Pack validated][pack-val]
 - [ ] Paint shop commissioning  6w  after: [Paint ready](../body/paint-shop.md#paint-ready)
 - [ ] [Supplier PPAP](supplier-ppap.md)  by: 2028-05-31

@@ -1,0 +1,16 @@
+# plant-readiness.lock — tool-generated snapshot; rebuild with `pmd lock plant-readiness.md`.
+../aurora.md  id=cars.example.com/aurora  hash=c339f79485116892  commitment=2028-11-30  start=2026-10-01  seen=2026-11-15
+    design-freeze  2027-06-30
+    prototypes  2027-Q4
+    sop  2028-11-30
+    tooling-release  2028-03-31
+    type-approval  2028-09-30
+../body/paint-shop.md  hash=d8963b0e7c159144  commitment=2028-03-31  start=2027-01-01  seen=2026-11-15
+    paint-ready  2028-Q1
+../powertrain/battery-pack/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=41d1890a45d5b3e1  commitment=2026-09-01..2027-11-30  start=2026-09-01  seen=2026-11-15
+    b-samples  2027-09-30
+    pack-design-freeze  -> pack-design-release
+    pack-design-release  2027-06-15
+    validated  2027-11-30
+supplier-ppap.md  hash=46d71fe55a299a37  by=2028-05-31  commitment=2028-05-15  start=2026-10-12  seen=2026-11-15
+    ppap-approved  2028-04-30

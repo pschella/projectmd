@@ -229,7 +229,7 @@ projectmd-style markdown file. Recognised sections (by heading text, case-insens
 
 ## 8 Lock file
 
-`pmd.lock` at the repository root (the nearest ancestor folder containing it). UTF-8, line based:
+The lock of `NAME.md` is `NAME.lock` in the same folder (FORMAT §9). UTF-8, line based:
 
 ```text
 # comment
@@ -242,7 +242,13 @@ projectmd-style markdown file. Recognised sections (by heading text, case-insens
   file bytes), `commitment` (date expression or `A..B`), `start` (exact date: the project's earliest
   declared date, i.e. the Commitment start if it is a range, else the earliest start of any
   declared date, range or milestone in the file), `seen` (exact date). Unknown fields are kept.
-  `pmd lock` writes entries for the root and every project reachable from it (transitively).
+  `by` (date expression: the need-by date this project's link to the entry declares, if any),
+  `late` (date: the entry's forecast end, written only when it is later than the end of its
+  Commitment; when computing it, a child entry with `late` counts as finishing at that date). The
+  lock holds one entry per project directly linked from its own project (sub-project links and
+  cross-file references). `pmd lock FILE` reads FILE, each direct link and that link's own lock
+  (`X.md` → `X.lock`; a missing one is not an error), and nothing deeper. An unreadable direct
+  link keeps its entry from the previous lock.
 - **Milestone lines** are indented by 4 spaces: public milestone id (without `^`) and its
   declared date, or `-> new-id` for a tombstone.
 - Entries are sorted by location; milestones by id.
