@@ -58,6 +58,7 @@ A planning item's own children may be planning items, property bullets or prose.
 |---|---|
 | `milestone` | planning item with a leading date |
 | `subproject` | planning item without leading date whose **entire title** is one link (§4.2) whose resolved target has no `#fragment` and whose path ends in `.md` (case-insensitive; query string allowed for URLs) |
+| `deliverable` | planning item without leading date whose **entire title** is one link whose target **has** a `#fragment` (the id of a public milestone in another file) |
 | `task` | any other planning item |
 | `heading` | §3 |
 
@@ -115,7 +116,7 @@ Let `A[0..n)` be the atoms and `end = n`. Repeat:
 5. **Bare token.** If `a` is a tag, id, duration or date, record it, `end = end-1`, continue.
 6. Stop.
 
-The **title** is the text from the start of `A[0]` to the end of `A[end-1]`, verbatim. For a `subproject` node (§2.3) the stored title is the link's text (`[Powertrain](…)` → `Powertrain`); the link itself is kept in the node's `link`.
+The **title** is the text from the start of `A[0]` to the end of `A[end-1]`, verbatim. For a `subproject` or `deliverable` node (§2.3) the stored title is the link's text (`[Powertrain](…)` → `Powertrain`); the link itself is kept in the node's `link`.
 Suffix elements are stored in their original left-to-right order. Code atoms are never tokens.
 
 Examples (known keys: owner, after, by, approver, replaced-by):
@@ -133,7 +134,7 @@ Examples (known keys: owner, after, by, approver, replaced-by):
 
 ### 4.4 Known keys
 
-Core: `owner`, `after`, `by`, `approver`, `replaced-by`. A profile (§7) may add more.
+Core: `owner`, `after`, `by`, `approver`, `replaced-by`, `done` (an exact date, §5.1; only meaningful on a done item). A profile (§7) may add more.
 Repeatable: `after`, `approver`. Repeating any other key on one node is an error
 `E-SYNTAX` (the last value wins for tooling that continues).
 
@@ -159,6 +160,7 @@ key (it stays in the title):
 | `after` | word that is an id (`^x`) or `path#id`/`path.md`; link |
 | `by` | date expression, range, id, `path#id`; link |
 | `replaced-by` | id |
+| `done` | exact date |
 | profile keys | any value |
 
 So `by: Friday` and `owner: Jan Doe` stay in the title (a validator may warn about a
@@ -209,6 +211,11 @@ for core keys:
 | `Commitment` | date expression or range |
 | `State` | free text |
 | `ID` | free text, by convention `domain/path/name` |
+| `Done` | exact date: the project was delivered that day |
+| `Late` | date expression: the project's own statement that it ends after its Commitment (its end is used) |
+| `As-of` | exact date: freshness of the information |
+| `Plan` | one or more links (inline or reference), comma-separated: fuller plans for permitted readers |
+| `Parent` | one or more links, comma-separated: informational, never used for scheduling |
 
 If the first item does not match, there is no property header.
 
@@ -229,38 +236,65 @@ projectmd-style markdown file. Recognised sections (by heading text, case-insens
 
 ## 8 Lock file
 
-The lock of `NAME.md` is `NAME.lock` in the same folder (FORMAT §9). UTF-8, line based:
+The lock of `NAME.md` is `NAME.lock` in the same folder (FORMAT §9). UTF-8, line based. The first
+line is the version comment `# projectmd lock 0.2`.
 
 ```text
-# comment
+# projectmd lock 0.2
 <location>  key=value  key=value ...
-    <milestone-id>  <date-expression>
+    <milestone-id>  <date-expression>  [done=<date>]
 ```
 
 - An **entry line** starts in column 0: the location (relative path from the lock's folder, or
-  URL), then whitespace-separated `key=value` fields: `id`, `hash` (hex prefix of SHA-256 of the
-  file bytes), `commitment` (date expression or `A..B`), `start` (exact date: the project's earliest
-  declared date, i.e. the Commitment start if it is a range, else the earliest start of any
-  declared date, range or milestone in the file), `seen` (exact date). Unknown fields are kept.
-  `by` (date expression: the need-by date this project's link to the entry declares, if any),
-  `late` (date: the entry's forecast end, written only when it is later than the end of its
-  Commitment; when computing it, a child entry with `late` counts as finishing at that date). The
-  lock holds one entry per project directly linked from its own project (sub-project links and
-  cross-file references). `pmd lock FILE` reads FILE, each direct link and that link's own lock
-  (`X.md` → `X.lock`; a missing one is not an error), and nothing deeper. An unreadable direct
-  link keeps its entry from the previous lock.
-- **Milestone lines** are indented by 4 spaces: public milestone id (without `^`) and its
-  declared date, or `-> new-id` for a tombstone.
+  URL), then whitespace-separated `key=value` fields. Unknown fields are kept. Fields:
+  - `id`: the project's `ID`.
+  - `hash`: hex prefix of the SHA-256 of the child's **canonical interface text** (§8.1) without
+    its `As-of` line. Internal edits of the child do not change it.
+  - `commitment` (date expression or `A..B`), `start` (exact date: the Commitment start if it
+    is a range, else the earliest declared date in the interface), `seen` (exact date).
+  - `by`: the need-by date the link to this entry declares, if any (date expression).
+  - `late`: date; the entry's own `Late`, or its forecast end derived from the file and its lock
+    when later than its Commitment. A child entry with `late` counts as finishing at that date.
+  - `status`: contract state (FORMAT §9): `accepted`, `delivered`, `unknown`, `requested`,
+    `disputed`, `at-risk` or `agreed`. Only entries with `by` have one.
+  - `as-of`: exact date; the entry's `As-of`, kept as read.
+  - `done`: exact date; the entry's `Done`.
+- A **project contract** is the entry of the linked project, with `by=` and `status=`. A
+  **deliverable contract** is an entry line of its own whose location is
+  `<location>#<milestone-id>`, carrying only `by=` and `status=`, followed by one milestone
+  line with that milestone's date (FORMAT §9). The child project keeps its own entry.
+- The lock holds one entry per project directly linked from its own project (sub-project
+  links, deliverables and cross-file references). `pmd lock FILE` reads FILE and, for each
+  direct link, its interface: the linked file, or for a full plan the interface derived from
+  it and its own lock (`X.md` → `X.lock`; a missing one is not an error). Nothing deeper. An
+  unreadable direct link keeps its entry, with `status=unknown`.
+- **Milestone lines** are indented by 4 spaces: public milestone id (without `^`), its
+  declared date, and optionally `done=DATE`; or `-> new-id` for a tombstone.
 - Entries are sorted by location; milestones by id.
+
+### 8.1 Interface file
+
+`pmd export FILE` writes the interface of FILE (FORMAT §8): a projectmd file that uses only
+this subset of the grammar, in canonical form:
+
+1. First line `<!-- projectmd interface 0.2 -->`, then the H1 with the project name.
+2. A header (§6.1) in this order, omitting keys with no value: `Owner`, `Commitment`, `State`,
+   `ID`, `Done`, `Late`, `As-of`, `Plan`.
+3. The `#public` milestones, in file order, as `- [c] DATE title  #public  ^id  [done: DATE]`.
+   A tombstone keeps its `replaced-by:`.
+4. Nothing else: no headings, tasks, prose or links other than `Plan`. Exporting an
+   interface returns it unchanged (except `As-of`).
+
+The canonical interface text used for `hash` is this file without the `As-of` line.
 
 ## 9 Parse output (data model)
 
 ```text
-Project  { path, title, id, owner, stakeholders[], commitment, state, header{k:v},
+Project  { path, title, id, owner, stakeholders[], commitment, state, done, late, as_of, plan[], parent[], header{k:v},
            suffix (from H1), nodes[] (top level), refdefs{label:(target,title)}, diagnostics[] }
-Node     { kind (task|milestone|subproject|heading), line, checkbox (none|open|done|cancelled),
-           title, date (leading or suffix date), range, duration, tags[], id,
-           keys{ name: [values] }, link (subproject target + link title), children[] }
+Node     { kind (task|milestone|subproject|deliverable|heading), line, checkbox (none|open|done|cancelled),
+           title, date (leading or suffix date), range, duration, tags[], id, done,
+           keys{ name: [values] }, link (subproject/deliverable target + link title), children[] }
 Value    { kind (word|person|link|range), text, target?, title?, name?, email? }
 Diagnostic { severity (E|W), code, line, message }
 ```

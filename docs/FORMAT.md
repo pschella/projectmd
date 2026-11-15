@@ -33,6 +33,7 @@ children and predecessors (`after:`).
 | Task `- [ ] Seat concept  6w` | node with a duration | optional declared end | sub-items, if any |
 | Milestone `- [ ] 2027-06-30 Design freeze` | point node: declared end, no duration | the date | none |
 | Sub-project `- [ ] [Powertrain](powertrain/powertrain.md)  by: 2028-02-28` | node whose children live in another file | `by:` = what the parent asks; the child's Commitment = what it promises | the child's items |
+| Deliverable `- [ ] [Pack B-samples](battery-pack.md#b-samples)  by: 2027-09-30` | node whose dates come from one public milestone of another project | `by:` = the contract; the milestone's date = the promise | none |
 | File (project) | node whose children are its items; its header sets its keys | Commitment = declared end | its items |
 | Heading `## Phase 1 — Concept  2026-11 .. 2027-06` | optional grouping node; ignored if no planning items sit under it | its range, if written | items under it |
 
@@ -52,7 +53,7 @@ dates. For an inline item they are the same, so one date is written.
 - **Planning item**: a list item with a checkbox or a leading date. Anything else is **prose**
   and is ignored, except property sub-bullets (3.4).
 - **Checkbox**: `[ ]` open · `[x]` done · `[-]` cancelled (does not block successors, never
-  overdue). On a gate, `[x]` = passed and `[-]` = rejected.
+  overdue; on a gate: rejected; on a tombstone or deliverable: withdrawn, see 10). On a gate, `[x]` = passed.
 - **Leading date**: a milestone's date. It is the declared end, like a trailing date, but reads as a point.
 
 ### 3.2 The suffix is parsed right to left
@@ -80,6 +81,7 @@ A `` `code span` `` is never a token, so `` `after: ^x` `` stays in the title.
 | `by:` | date, coarse date, `^id` or `target#id` | no | on a sub-project: the bound the parent asks; inline: the declared end |
 | `approver:` | `@handle` or `Name <email>` | yes: all must sign | who signs off a gate |
 | `replaced-by:` | `^id` | no | tombstone (8) |
+| `done:` | exact date | no | when a `[x]` item was completed; written by whoever ticks it |
 
 Profiles add keys (10). A value is one atom: a word, a `Name <email>` person, a
 `[text](target)` or `[text][ref]` link, or a date range.
@@ -117,6 +119,11 @@ The property sub-bullets directly under the H1 title are the header:
 | `Commitment` | date or range | what the project promises its parents; its end is the declared end. Optional: absent means it accepts the parent's `by:` |
 | `State` | free text | vocabulary **(open)** |
 | `ID` | readable namespaced string | stable identity, needed only for projects referenced from other repositories; not a UUID |
+| `Done` | exact date | the project was delivered on this date |
+| `Late` | date | the project's own statement that it will end after its Commitment. If absent, tools derive it from the file and its lock |
+| `As-of` | exact date | how fresh the information is: the export date, never later than the oldest `as-of` among unfinished direct links |
+| `Plan` | one or more links | a fuller plan for readers who may open it (8). Informational |
+| `Parent` | one or more links | who asks things of this project. Informational: for "go up" navigation and asks, never for scheduling |
 
 Keys are case-insensitive. Unknown keys are kept. YAML front-matter with the same keys is an
 accepted alternative; whether the list or YAML is preferred is **(open)**.
@@ -186,85 +193,133 @@ an unfinished node never ends before today
 ```
 
 A cancelled node (`[-]`) is not waited for. A sub-project's children are in another file, so its
-end is that file's Commitment (7.3). Tools given the same files must compute the same forecast.
+end is that file's Commitment, or its `late` date if it has one. A deliverable's end is the
+milestone's date, or its `late`. A heading's range is an estimate: its start is a not-before for
+its children, its end is never a declared end, a conflict source or a forecast extender. Tools
+given the same files must compute the same forecast.
 
 ### 7.2 Conflict rule
 
 > A node is in **conflict** when its forecast end is later than a declared end that applies to
 > it: its own date, its container's `by:`, or its Commitment.
 
-This covers overdue items and milestones whose predecessors finish late.
+This covers overdue items and milestones whose predecessors finish late. Declared ends are
+milestones, item dates, `by:` and Commitments. A file's own Commitment is a declared end of the
+file itself, so a file forecast past its own Commitment is a conflict in its own check.
 
 ### 7.3 Locality rule
 
-> **Only declared dates cross a file boundary. Forecasts never do.**
+> **Promises cross boundaries as contracts; lateness crosses as a dated signal (`late`, `as-of`);
+> neither ever changes another file's declared dates. A file's tools read only the file, its lock
+> and the interfaces of its direct links.**
 
-- A parent uses its child's Commitment; a cross-file `after:` uses the target's declared date.
-  A file's forecast therefore needs only that file and the interfaces it links to: one hop, at any depth.
-- A child whose forecast slips either absorbs it, or changes its Commitment or public milestone
-  date, which is a visible interface change (8). Health signals (ok, at-risk, conflict, unknown)
-  may cross as colour, never as a date.
+- A parent schedules a sub-project or deliverable from the child's interface: its Commitment or
+  milestone date, or its `late` date when it has one. Nothing deeper is read.
+- A child whose forecast slips either absorbs it, or says so with `Late:`, or changes its
+  Commitment or a milestone date, which is a visible interface change (8).
 - A child with no Commitment is held to its parent's `by:`.
 
-## 8 Interfaces and breaking changes
+## 8 Interfaces
 
-A project's **interface** is its Commitment plus its `#public` milestones (id and date).
+A project's **interface** is what it promises other projects: Commitment, `#public` milestones
+and, if it is late, `Late:`. It is published as a **projectmd file** (conventionally
+`NAME.public.md`), so there is no second format. It contains the H1, the header keys `Owner`,
+`Commitment`, `State`, `ID`, `Done`, `Late`, `As-of` and optionally `Plan`, and the public
+milestones (checkbox, date, title, `#public`, `^id`, `done:`). Nothing else: no tasks, no
+people beyond `Owner`. Its first line is a comment naming the format version
+(`<!-- projectmd interface 0.2 -->`).
 
-- **Non-breaking**: a date moved earlier, or a public milestone added.
-- **Breaking**: a date moved later, or a public milestone removed or renamed. Consumers must re-check.
+- `pmd export FILE` writes it from a plan, in canonical form. Exporting an interface gives the
+  same interface.
+- A parent may link a child's full plan or its interface; both are just projects. Tools derive
+  the interface of a full plan. Whoever may read more follows `Plan:`.
+- No tool needed: a thin, hand-kept file (header plus public milestones) is a valid interface;
+  any tool, spreadsheet or database may emit one.
 
-A removed or renamed public milestone leaves a cancelled tombstone, `- [-] … #public ^tooling-release replaced-by: ^tooling-release-2` **(open: exact shape)**.
+```markdown
+<!-- projectmd interface 0.2 -->
+# Powertrain
+
+- Owner: Jan de Boer <jan.deboer@example.com>
+- Commitment: 2028-02-15
+- State: in-development
+- ID: cars.example.com/aurora/powertrain
+- Late: 2028-03-31
+- As-of: 2026-11-15
+- Plan: [Powertrain plan](powertrain.md)
+
+- [x] 2027-05-31 Powertrain concept frozen  #public  ^concept-frozen  done: 2027-05-28
+- [ ] 2028-02-15 Powertrain validated  #public  ^validated
+```
+
+**Changes.** Non-breaking: a date moved earlier, or a public milestone added. Breaking: a date
+moved later, or a public milestone removed or renamed. Consumers must re-check. A removed or
+renamed public milestone leaves a cancelled tombstone,
+`- [-] … #public ^tooling-release replaced-by: ^tooling-release-2` **(open: exact shape)**.
 
 ## 9 Lock file
 
 A project that links other projects may have a **lock file**: a sidecar with the same name and
-the extension `.lock` (`aurora.md` → `aurora.lock`), written only by tools. No project is special:
-every file can have its own lock, so any sub-project can be moved elsewhere, lock and all, and is
-then a top-level project in every respect.
+the extension `.lock` (`aurora.md` → `aurora.lock`), written only by tools. Its syntax is in
+[GRAMMAR §8](GRAMMAR.md). No project is special: every file can have its own lock, so any
+sub-project can be moved elsewhere, lock and all.
 
-A large project is usually **distributed**: groups of sub-projects live in different places
-(repositories, servers, supplier portals), are kept by different teams with different tools, and
-show the larger project only their interfaces. What crosses each boundary is a **contract**: the
-parent's need-by date (`by:` on the link) and the child's promise (its Commitment and public
-milestones). The lock records the contracts with each **directly** linked project and nothing
-more: location, id, hash, `by`, Commitment, start, public milestones with dates, the date last
-seen and, if the child cannot keep its promise, `late` (its forecast end). It never records
-tasks, people or other internals. Example, for the Aurora battery pack and the supplier's
-inverter:
+A large project is usually **distributed**: sub-projects live in different places, are kept by
+different teams and tools, and show only their interfaces. What crosses each boundary is a
+**contract**: a need-by date (`by:`) on a link, matched by the child's promise. Two kinds:
+
+- a **project contract**: `by:` on a link to a project, against its Commitment;
+- a **deliverable contract**: `by:` on a deliverable (2), against that milestone's date.
+
+The lock records every contract with a **directly** linked project, and nothing else: location,
+id, interface hash, `by`, Commitment, `late`, `status`, `as-of`, `done`, `seen`, and the public
+milestones with dates. Never tasks, people or other internals. A link without `by:` is a
+dependency, not a contract. Example:
 
 ```text
-# aurora.lock — written by tooling; do not edit
-powertrain/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=4c1e9a  by=2027-12-15  commitment=2027-11-30  late=2028-01-21  seen=2026-11-14
-    design-freeze   2027-06-30
+# projectmd lock 0.2
+powertrain/battery-pack.md  id=cars.example.com/platform/battery-pack  hash=4c1e9a  by=2027-12-15  commitment=2027-11-30  late=2028-01-21  status=at-risk  as-of=2026-11-14  seen=2026-11-14
+    design-freeze   2027-06-30  done=2027-06-28
     validated       2027-11-30
-https://supplier-portal.example.net/projects/inv-2207.md  id=supplier.example.net/inverters/inv-2207  hash=b07a3f  commitment=2027-09-30  seen=2026-11-12
+powertrain/battery-pack.md#b-samples  by=2027-09-30  status=agreed
+    b-samples       2027-09-15
+https://supplier-portal.example.net/projects/inv-2207.md  id=supplier.example.net/inverters/inv-2207  hash=b07a3f  commitment=2027-09-30  status=agreed  as-of=2026-11-12  seen=2026-11-12
     a-samples       2027-06-30
 ```
 
-A contract **holds** if the promise is no later than the need-by date, is **broken** if it is
-later (an error, `E-BOUND`, §12), and is **at risk** if the child is `late` past the need-by date.
+**Contract states** are derived, never written by hand, and tested in this order:
+
+| State | Meaning |
+|---|---|
+| `accepted` | the parent's own line is `[x]` |
+| `delivered` | the child has `Done:`, or the milestone is `[x]` |
+| `unknown` | the last refresh could not read the child; last known fields are kept, with `seen` |
+| `requested` | the parent has a `by:`, the child has made no promise yet |
+| `disputed` | the promise is later than the `by:`, or the target was withdrawn |
+| `at-risk` | the promise holds, but the child reports `late` past the `by:` |
+| `agreed` | the promise is no later than the `by:` |
+
+**Freshness.** A project's `As-of` is never later than the oldest `as-of` among its unfinished
+direct links, so staleness climbs like lateness: a view can say "on time, as of 3 days ago".
+
+**Interface hash.** `hash` covers the child's canonical interface without its `As-of` line.
+Internal edits do not change it and never touch parents. A changed hash is the change notification.
 
 **Scaling works like Go compilation.** If A links B and B links C, then everything A needs from C
-is already folded into B's contract with A. B's tools schedule B against B's contracts with its
+is already folded into B's interface. B's tools schedule B against B's contracts with its
 children, treating a late child as finishing at its `late` date. If that pushes B past its own
-Commitment, B is late. A's tools read only B, never C:
+Commitment, B is late and says so in `Late:`. A's tools read only B's interface, never C
+(7.3):
 
-- **Refreshing** `A.lock` reads `A.md`, each directly linked file and that file's own lock, and
-  nothing deeper. The cost depends on the number of direct links, not the size of the graph.
-- **Reading** needs no fetches: any view of A draws from `A.md` and `A.lock` alone. Expanding a
-  sub-project loads that file and its lock, one level at a time. An unreachable project shows
-  its last known contract, marked "unknown as of <date>".
+- **Refreshing** `A.lock` reads, for each direct link, only its interface: the linked file; if
+  that is a full plan, tools derive its interface from it plus its own lock. The cost depends
+  on the number of direct links, not the size of the graph.
+- **Reading** needs no fetches: any view of A draws from `A.md` and `A.lock` alone.
 - **Risk propagates, internals do not.** When C slips, B becomes late, and the next refresh of
-  `A.lock` shows A's contract with B at risk. A sees that, but not why. The reason lives in B and
-  is B's to show.
-- **Each owner decides what is visible.** Without a published `B.lock`, A still has B's promise,
-  but whether B is late is unknown.
-- **Checking** works the same way. `pmd check FILE` validates FILE against its own lock and its
-  direct links, and warns when the lock is stale. `pmd check --deep FILE` validates the whole
-  graph reachable from FILE, for when that is wanted and reachable.
-- If a direct link cannot be read, its previous entry is kept as it was.
-- A changed hash or contract is the change notification. The lock's history is a history of
-  every contract the project depended on.
+  `A.lock` shows A's contract with B at risk. A sees that, but not why.
+- **Checking.** `pmd check FILE` validates FILE against its own lock and direct links;
+  `--deep` validates the whole reachable graph.
+- If a direct link cannot be read, its entry is kept as it was and its status becomes `unknown`.
 
 ## 10 Profiles, gates and extensions
 
@@ -272,9 +327,9 @@ A **profile** is `.pmd/profile.md`, the nearest one up the folder tree (like `.e
 declares the state vocabulary **(open)**, extra known keys, a registry of `@handles`, and optional
 modules (resources, calendars, health labels).
 
-A **gate** is a milestone with an `approver:`. Its decision is `[x]` or `[-]`, its record is prose
-sub-bullets, and who and when come from version history. A decision is stale when the plan under
-it changed after it was ticked.
+A **gate** is a milestone with an `approver:`. Its decision is `[x]` or `[-]`; its record is prose
+sub-bullets that may include `done: DATE`. No version history is assumed. `[-]` always means
+"will not happen": cancelled, rejected (gate) or withdrawn (tombstone, deliverable).
 
 **Out of the core**: cost, budget, resource allocation and capacity (left to external tooling that reads the project graph), in-file derived blocks, working-day calendars, health labels, custom state
 machines, dependency types other than finish-to-start, ticket import.
@@ -287,11 +342,12 @@ machines, dependency types other than finish-to-start, ticket import.
 | 1 | dates, durations, `owner:` | see a Gantt chart of one file |
 | 2 | `^id`, `after:` | see dependencies and conflicts |
 | 3 | links to files, `by:`, `Commitment:` | nest projects |
-| 4 | `#public`, cross-file references, lock file | scale across teams and repositories |
+| 4 | `#public`, cross-file references, deliverables, interfaces, lock file | scale across teams and repositories |
 
 ## 12 Validation rules
 
-E = error, W = warning. The message is what a person sees.
+E = error, W = warning, I = info. The message is what a person sees. Negotiation is not an error:
+`pmd check --strict` turns warnings into errors, for CI.
 
 | Code | Rule | Message | Suggested fix |
 |---|---|---|---|
@@ -303,8 +359,12 @@ E = error, W = warning. The message is what a person sees.
 | E-REF-MISSING | Linked local file cannot be read | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
 | E-CYCLE | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
 | E-CONFLICT | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
-| E-BOUND | Broken contract: a child's promise is later than the parent's `by:` (§9) | "`Powertrain` commits to 2028-03-31, after the bound `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child's owner moves its Commitment |
-| W-STALE-LOCK | Stale lock: file hash differs from the lock | "`aurora.lock` is out of date for `battery-pack.md`" | Refresh the lock with `pmd lock` |
+| W-DISPUTED | Contract `disputed` (§9): promise later than `by:`, or target withdrawn | "`Powertrain` promises 2028-03-31, after `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child moves its Commitment |
+| W-AT-RISK | Contract `at-risk` (§9) | "`Powertrain` reports it will finish 2028-03-31 (as of 2026-11-14), after `by: 2028-02-28`" | Re-plan, or ask the child to recover |
+| W-UNKNOWN | Contract `unknown`: link not readable at the last refresh | "`Powertrain` could not be read; last seen 2026-11-12" | Check the link and its access |
+| I-REQUESTED | Contract `requested`: `by:` set, no promise yet (info) | "`Powertrain` has not answered `by: 2028-02-28`" | Wait, or ask the child's owner |
+| W-STALE-LOCK | Stale lock: the child's interface hash differs from the lock | "`aurora.lock` is out of date for `battery-pack.md`" | Refresh the lock with `pmd lock` |
+| W-KEYLIKE | Near-miss key left in a title | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | Write a valid value, or reword |
 | W-NO-OWNER | Missing `Owner` | "`Owner` is not set" | Add `- Owner: Name <email>` under the title |
 | W-UNKNOWN-HANDLE | Unknown `@handle` | "`@jan` is not in the people registry; kept as written" | Add it to `.pmd/profile.md`, or write `Name <email>` |
 
@@ -321,7 +381,7 @@ tag        = "#" , name ;
 item_id    = "^" , name ;
 duration   = digit , { digit } , ( "d" | "w" | "m" ) ;
 key_value  = known_key , ":" , " " , value ;
-known_key  = "owner" | "after" | "by" | "approver" | "replaced-by" | profile_key ;
+known_key  = "owner" | "after" | "by" | "approver" | "replaced-by" | "done" | profile_key ;
 value      = person | link | date_range | ref | word ;
 person     = name , " <" , email , ">" ;
 link       = "[" , text , "](" , target , [ ' "' , text , '"' ] , ")"
@@ -350,15 +410,16 @@ stays plain markdown for both; these conventions make machine edits small, safe 
 - **Ids on demand.** `pmd fmt --ids` gives every item without an `^id` a readable one made
   from its title (lowercase, hyphenated, at most four words, unique in the file). Existing ids
   never change. Agents refer to items by id, not by title.
-- **Safe concurrent edits.** A file's hash (as in the lock) is its version. A tool or agent
-  reads a file and its hash, edits it, and writes only if the hash is still the same;
-  otherwise it reads again. Writing commands take `--if-hash HASH`.
+- **Safe concurrent edits.** A file's hash is its version. An agent reads a file and its hash,
+  edits it, and writes only if the hash is unchanged (`--if-hash HASH`); otherwise it reads again.
 - **Diagnostics an agent can act on.** `pmd check` prints one line per finding,
   `path:line: SEV CODE message`, followed by an indented `fix:` line with the suggested fix
   from §12. Codes are stable. With `--json`, `pmd check` and `pmd schedule` print the same
   information as JSON. Tool output may be JSON; project files are always markdown.
 - **An entry point for agents.** A folder of plans may hold an `AGENTS.md` that points to the
   cheat sheet and states local rules. Agents read it first.
+- **Write `done:` when ticking** `[ ]` to `[x]`, with the real completion date.
+- **Publish with `pmd export FILE`** (8) rather than hand-writing an interface.
 - **Edit only what you own.** To ask another project for a date, write `by:` on your own link
   to it; never change its Commitment or milestones. Never write forecasts or lock files.
 - **Reasons travel with changes.** When a change moves a Commitment, a `by:` or a public
