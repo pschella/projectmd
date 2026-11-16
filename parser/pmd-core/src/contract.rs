@@ -19,6 +19,7 @@ pub enum Child<'a> {
 pub enum State {
     Requested,
     Agreed,
+    Overdue,
     Disputed,
     Delivered,
     Unknown,
@@ -29,6 +30,7 @@ impl State {
         match self {
             State::Requested => "requested",
             State::Agreed => "agreed",
+            State::Overdue => "overdue",
             State::Disputed => "disputed",
             State::Delivered => "delivered",
             State::Unknown => "unknown",
@@ -69,7 +71,8 @@ fn node_by(proj: &Project, n: &Node) -> Option<(Civil, String)> {
     best
 }
 
-/// State of a project contract, tested in this order: delivered, requested, disputed, agreed.
+/// State of a project contract, tested in this order: delivered, requested, disputed, agreed. `contracts_of` then turns
+/// disputed or agreed into `overdue` when the need-by is before today.
 pub fn project_state(by: Civil, child: &Project) -> State {
     if child.done.is_some() {
         State::Delivered
@@ -98,9 +101,9 @@ pub fn deliverable_state(by: Civil, child: &Project, frag: &str) -> (State, Opti
 /// Contracts of `proj`: every unfinished sub-project or deliverable line with a `by:`. A link line
 /// without `by:` has no contract. `lookup` gets the normalised target; `None` means "skip" (for
 /// example a local file that does not exist, which is `E-REF-MISSING`, not a contract matter).
-pub fn contracts_of<'a>(proj: &Project, lookup: &dyn Fn(&str) -> Option<Child<'a>>) -> Vec<Contract> {
+pub fn contracts_of<'a>(proj: &Project, today: Civil, lookup: &dyn Fn(&str) -> Option<Child<'a>>) -> Vec<Contract> {
     let mut out = Vec::new();
-    proj.walk(|n| {
+    proj.walk_live(|n| {
         let Some(l) = &n.link else { return };
         if !matches!(n.kind, NodeKind::Subproject | NodeKind::Deliverable) || matches!(n.checkbox, Checkbox::Cancelled | Checkbox::Done) {
             return;
@@ -116,18 +119,20 @@ pub fn contracts_of<'a>(proj: &Project, lookup: &dyn Fn(&str) -> Option<Child<'a
                 _ => (project_state(by, c), c.commitment.as_ref().map(|c| c.end)),
             },
         };
+        let state = if by < today && matches!(state, State::Disputed | State::Agreed) { State::Overdue } else { state };
         out.push(Contract { line: n.line, title: n.title.clone(), target, kind: n.kind, by, by_text, promise, state });
     });
     out
 }
 
-/// W-DISPUTED, I-REQUESTED and W-UNKNOWN for `proj`'s contracts.
-pub fn contract_diags<'a>(proj: &Project, lookup: &dyn Fn(&str) -> Option<Child<'a>>) -> Vec<Diagnostic> {
-    contracts_of(proj, lookup)
+/// W-OVERDUE, W-DISPUTED, I-REQUESTED and W-UNKNOWN for `proj`'s contracts.
+pub fn contract_diags<'a>(proj: &Project, today: Civil, lookup: &dyn Fn(&str) -> Option<Child<'a>>) -> Vec<Diagnostic> {
+    contracts_of(proj, today, lookup)
         .into_iter()
         .filter_map(|c| {
             let t = &c.title;
             let (sev, code, msg) = match c.state {
+                State::Overdue => (Severity::W, "W-OVERDUE", format!("`{}` is overdue: needed by {}, not delivered", t, c.by_text)),
                 State::Disputed => match c.promise {
                     Some(d) => (Severity::W, "W-DISPUTED", format!("`{}` promises {}, after `by: {}`", t, d, c.by_text)),
                     None => (Severity::W, "W-DISPUTED", format!("`{}` was withdrawn or is not offered; `by: {}`", t, c.by_text)),

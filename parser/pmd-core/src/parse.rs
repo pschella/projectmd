@@ -58,11 +58,6 @@ pub fn is_duration(w: &str) -> Option<(u32, char)> {
 }
 
 /// `YYYY-MM-DD` shape (validity is checked separately).
-fn is_exact_shape(w: &str) -> bool {
-    let b = w.as_bytes();
-    b.len() == 10 && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
-}
-
 fn ends_md(w: &str) -> bool {
     let b = w.as_bytes();
     b.len() >= 3 && b[b.len() - 3..].eq_ignore_ascii_case(b".md")
@@ -399,6 +394,8 @@ struct P<'a> {
     refdefs: BTreeMap<String, RefDef>,
     atoms: Vec<Atom>,
     ids: HashMap<&'a str, u32>,
+    /// Ids taken from a dated deliverable's link fragment (R2d).
+    derived: HashMap<String, u32>,
     refs: Vec<(u32, String)>,
 }
 
@@ -409,6 +406,7 @@ pub fn parse(path: &str, src: &str) -> Project {
         refdefs: BTreeMap::new(),
         atoms: Vec::new(),
         ids: HashMap::new(),
+        derived: HashMap::new(),
         refs: Vec::new(),
     };
     p.run(path, src)
@@ -443,6 +441,22 @@ impl<'a> P<'a> {
         } else {
             None
         }
+    }
+
+    /// Does atom `k` end an `owner:` value: a tag, id, duration, date, range part or known key?
+    fn is_suffix_token(&self, text: &str, atoms: &[Atom], k: usize) -> bool {
+        let a = &atoms[k];
+        if a.kind != AK::Word {
+            return false;
+        }
+        let w = &text[a.s..a.e];
+        w == ".."
+            || is_tag(w)
+            || is_id(w)
+            || is_duration(w).is_some()
+            || parse_date(w) != DateParse::NotDate
+            || split_range_word(w).is_some()
+            || self.atom_key(text, a).is_some()
     }
 
     fn link_parts<'t>(&'t self, text: &'t str, a: &Atom) -> (&'t str, &'t str, Option<&'t str>) {
@@ -546,7 +560,11 @@ impl<'a> P<'a> {
                 ValueKind::Word => parse_date(&v.text) != DateParse::NotDate || is_id(&v.text),
                 _ => false,
             },
-            "done" => v.kind == ValueKind::Word && is_exact_shape(&v.text) && parse_date(&v.text) != DateParse::NotDate,
+            "done" => match v.kind {
+                ValueKind::Word => parse_date(&v.text) != DateParse::NotDate,
+                ValueKind::Range => v.start.is_some() && v.end.is_some(),
+                _ => false,
+            },
             _ => true,
         }
     }
@@ -627,7 +645,31 @@ impl<'a> P<'a> {
             let a = atoms[end - 1];
             // 3. key + value
             let mut found: Option<(usize, Value, String)> = None;
-            if end >= 3 {
+            // R1a: `owner:` takes any text up to the next suffix token (scan left from the end).
+            if end >= 3 && !self.is_suffix_token(text, &atoms, end - 1) {
+                let mut k = end - 2;
+                while k >= 1 {
+                    if self.atom_key(text, &atoms[k]).is_some_and(|n| n.eq_ignore_ascii_case("owner")) {
+                        let v = self.value_from_atoms(text, &atoms[k + 1..end]).filter(|v| matches!(v.kind, ValueKind::Person | ValueKind::Word)).unwrap_or_else(|| Value {
+                            kind: ValueKind::Word,
+                            text: text[atoms[k + 1].s..atoms[end - 1].e].to_string(),
+                            target: None,
+                            title: None,
+                            name: None,
+                            email: None,
+                            start: None,
+                            end: None,
+                        });
+                        found = Some((k, v, "owner".to_string()));
+                        break;
+                    }
+                    if self.is_suffix_token(text, &atoms, k) {
+                        break;
+                    }
+                    k -= 1;
+                }
+            }
+            if found.is_none() && end >= 3 {
                 let try_k = |k: usize, this: &Self| -> Option<(usize, Value, String)> {
                     let name = this.atom_key(text, &atoms[k])?;
                     let v = this.value_from_atoms(text, &atoms[k + 1..end])?;
@@ -772,7 +814,7 @@ impl<'a> P<'a> {
     }
 
     fn register_id(&mut self, id: &'a str, line: u32) {
-        if let Some(first) = self.ids.get(id) {
+        if let Some(first) = self.ids.get(id).or_else(|| self.derived.get(id)) {
             let first = *first;
             self.diag(Severity::E, "E-DUP-ID", line, format!("id '{}' already defined on line {}", id, first));
         } else {
@@ -888,11 +930,31 @@ impl<'a> P<'a> {
             }
         }
         // 2. leading date / range
-        let (lead, rest) = self.leading(rest, line);
-        let planning = checkbox != Checkbox::None || !matches!(lead, Leading::None);
+        let planning = checkbox != Checkbox::None;
+        let (lead, rest) = if planning { self.leading(rest, line) } else { (Leading::None, rest) };
         if !planning {
+            let before = self.diags.len();
             if self.property_bullet(line, body, stack, hdr) {
                 return;
+            }
+            // R2e: a bullet that reads like planning but has no checkbox or date.
+            if self.diags.len() == before && !matches!(stack.last(), Some(Slot::Prose { .. })) {
+                let mut atoms = std::mem::take(&mut self.atoms);
+                atomise(body, &self.refdefs, &mut atoms);
+                let key = (0..atoms.len().saturating_sub(1)).find_map(|k| self.atom_key(body, &atoms[k]));
+                self.atoms = atoms;
+                if let Some(k) = key {
+                    self.diag(Severity::W, "W-KEYLIKE", line, format!("`{}:` in a list item without `- [ ]`; add `- [ ]` to make it a planning item", k));
+                } else {
+                    // a leading date plus a suffix token: probably a forgotten checkbox
+                    let before = self.diags.len();
+                    let (l, r) = self.leading(body, line);
+                    let ext = self.extract(r, line);
+                    self.diags.truncate(before);
+                    if !matches!(l, Leading::None) && (ext.suffix.id.is_some() || ext.suffix.duration.is_some() || !ext.suffix.keys.is_empty()) {
+                        self.diag(Severity::W, "W-KEYLIKE", line, "leading date with `^id`, key or duration but no `- [ ]`; add `- [ ]` to make it a planning item".to_string());
+                    }
+                }
             }
             stack.push(Slot::Prose { indent });
             return;
@@ -909,6 +971,23 @@ impl<'a> P<'a> {
         match lead {
             Leading::Date(d) => {
                 kind = NodeKind::Milestone;
+                // R1b: a dated deliverable stays a milestone and keeps its link.
+                if let Some(a) = ext.single_link {
+                    let (t, target, ti) = self.link_parts(rest, &a);
+                    if is_deliverable_target(target) {
+                        title = t.to_string();
+                        link = Some(LinkInfo { text: t.to_string(), target: target.to_string(), title: ti.map(|s| s.to_string()) });
+                    }
+                }
+                // R2d: without its own id, a dated deliverable takes the target's fragment.
+                if let (None, Some(l)) = (&sfx.id, &link) {
+                    if let Some((_, f)) = l.target.split_once('#') {
+                        if is_id(&format!("^{}", f)) && !self.ids.contains_key(f) && !self.derived.contains_key(f) {
+                            self.derived.insert(f.to_string(), line);
+                            sfx.id = Some(f.to_string());
+                        }
+                    }
+                }
                 if d.is_some() {
                     suffix_date = sfx.date.take();
                     sfx.date = d;
@@ -1187,7 +1266,37 @@ impl<'a> P<'a> {
                 }
                 "commitment" => {
                     let w = v.trim();
-                    let ex = if let Some((x, y)) = split_range_word(w) {
+                    // R14a: `^id` or `DATE .. ^id` names a local item; its declared end is the date.
+                    let (lead, idw) = match w.split_once("..") {
+                        Some((x, y)) if y.trim().starts_with('^') => (Some(x.trim()), y.trim()),
+                        _ => (None, w),
+                    };
+                    let by_id = if is_id(idw) {
+                        let mut found = None;
+                        for n in &proj.nodes {
+                            n.walk(&mut |m| {
+                                if m.id.as_deref() == Some(&idw[1..]) && found.is_none() {
+                                    found = m.date.as_ref().or(m.suffix_date.as_ref()).map(|d| d.end);
+                                }
+                            });
+                        }
+                        match found {
+                            Some(e) => Some(e),
+                            None => {
+                                self.diag(Severity::E, "E-REF-LOCAL", *ln, format!("Commitment '{}' names no dated item in this file", idw));
+                                proj.commitment = None;
+                                continue;
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    let ex = if let Some(e) = by_id {
+                        match lead {
+                            None => Some(Some(DateExpr { text: e.to_string(), start: e, end: e, range: false })),
+                            Some(x) => Some(self.range_expr(x, &e.to_string(), *ln)),
+                        }
+                    } else if let Some((x, y)) = split_range_word(w) {
                         Some(self.range_expr(x, y, *ln))
                     } else if let Some(val) = self.single_value(w).filter(|x| x.kind == ValueKind::Range) {
                         let (x, y) = val.text.split_once("..").unwrap();
@@ -1342,6 +1451,7 @@ pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>) -> Opti
         refdefs: refdefs.clone(),
         atoms: Vec::new(),
         ids: HashMap::new(),
+        derived: HashMap::new(),
         refs: Vec::new(),
     };
     let bb = body.as_bytes();
@@ -1351,10 +1461,8 @@ pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>) -> Opti
         checkbox = Some(bb[1] as char);
         rest = &body[skip_ws(bb, 3)..];
     }
+    checkbox?;
     let (lead, after) = p.leading(rest, 0);
-    if checkbox.is_none() && matches!(lead, Leading::None) {
-        return None;
-    }
     let lead_text = if matches!(lead, Leading::None) {
         None
     } else {

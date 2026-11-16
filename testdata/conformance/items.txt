@@ -122,8 +122,15 @@ suffix:
 # note: a date that is not leading does not make the item planning; it is ignored.
 
 in:     - 2027-06-30 Pack sign-off
-kind:   milestone
+kind:   prose
 check:  none
+title:
+suffix:
+# note: a leading date without a checkbox is prose (W-KEYLIKE when it also has ^id, key or duration).
+
+in:     - [ ] 2027-06-30 Pack sign-off
+kind:   milestone
+check:  open
 date:   2027-06-30
 title:  Pack sign-off
 suffix:
@@ -221,9 +228,9 @@ suffix:
 in:     - [ ] Design owner: Jan Doe
 kind:   task
 check:  open
-title:  Design owner: Jan Doe
-suffix:
-# note: undesirable and silent. Owner needs an email or a handle; no diagnostic is defined.
+title:  Design
+suffix: owner=Jan Doe
+# note: R1a. owner takes any text up to the next suffix token.
 
 in:     - [ ] Design  owner: Jan Doe <jan@example.com>
 kind:   task
@@ -507,3 +514,32 @@ date:   2027-06-30
 title:  Owner: @jan
 suffix:
 # note: same cause as the leading-date no-title case.
+
+in:     - [ ] Review  owner: Henrik Osei  3d  ^rev
+kind:   task
+check:  open
+title:  Review
+suffix: duration=3d id=rev owner=Henrik Osei
+# note: R1a. The owner value ends at the next suffix token; the trailing id is kept.
+
+in:     - [ ] Build  owner: @h  #core ^b
+kind:   task
+check:  open
+title:  Build
+suffix: tag=core id=b owner=@h
+# note: R1a. A tag ends the owner value.
+
+in:     - [ ] Test  by: Friday  ^t
+kind:   task
+check:  open
+title:  Test  by: Friday
+suffix: id=t
+# note: R1a. A malformed key value stays in the title (W-KEYLIKE); the trailing id is not lost.
+
+in:     - [ ] 2027-06-30 [Design freeze](plan.md#freeze)  ^df
+kind:   milestone
+check:  open
+date:   2027-06-30
+title:  Design freeze
+suffix: id=df
+# note: R1b. Dated deliverable: a milestone whose whole title is a link with a fragment.

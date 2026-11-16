@@ -122,7 +122,7 @@ pub fn project_links(p: &Project) -> Vec<Link> {
             match n.kind {
                 NodeKind::Subproject => add(LinkKind::Subproject, n.line, &l.target),
                 // a deliverable reads one interface item of another project; it includes nothing
-                NodeKind::Deliverable => add(LinkKind::Reference, n.line, &l.target),
+                NodeKind::Deliverable | NodeKind::Milestone => add(LinkKind::Reference, n.line, &l.target),
                 _ => {}
             }
         }
@@ -196,6 +196,16 @@ impl Graph {
         v
     }
 
+    /// ` (exposed: ^id DATE, ...)` for the milestones project `ti` exposes (at most 8), or "".
+    fn exposed(&self, ti: usize) -> String {
+        let v: Vec<String> = crate::iface::interface_items(&self.projects[ti]).into_iter().filter_map(|it| it.id.map(|id| format!("^{} {}", id, it.date))).collect();
+        if v.is_empty() {
+            return String::new();
+        }
+        let more = if v.len() > 8 { ", \u{2026}" } else { "" };
+        format!(" (exposed: {}{})", v[..v.len().min(8)].join(", "), more)
+    }
+
     /// E-REF-MISSING, E-REF-PUBLIC, E-CYCLE.
     pub fn check(&self) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
@@ -211,10 +221,12 @@ impl Graph {
                     x.path = p.path.clone();
                     diags.push(x);
                 };
+                // messages show the link as written (relative to the file), not the resolved path
+                let shown = split_fragment(&l.target).0;
                 let ti = match self.index.get(&l.path) {
                     Some(&t) => t,
                     None => {
-                        d("E-REF-MISSING", format!("linked project not found: {}", l.path));
+                        d("E-REF-MISSING", format!("linked project not found: {}", shown));
                         continue;
                     }
                 };
@@ -232,8 +244,9 @@ impl Graph {
                         m
                     });
                     match idx.get(frag.as_str()) {
-                        None => d("E-REF-MISSING", format!("no item ^{} in {}", frag, l.path)),
-                        Some(false) => d("E-REF-PUBLIC", format!("`{}#{}` is not in its interface", l.path, frag)),
+                        None => d("E-REF-MISSING", format!("no item ^{} in {}{}", frag, shown, self.exposed(ti))),
+                        Some(false) if same_owner(&p.owner, &self.projects[ti].owner) => {}
+                        Some(false) => d("E-REF-PUBLIC", format!("`{}#{}` is not in its interface{}", shown, frag, self.exposed(ti))),
                         Some(true) => {}
                     }
                 }
@@ -270,5 +283,13 @@ impl Graph {
             }
         }
         diags
+    }
+}
+
+/// Same `Owner:` header text (trimmed): such files may reference any item with an `^id`.
+fn same_owner(a: &Option<crate::model::Value>, b: &Option<crate::model::Value>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => a.text.trim() == b.text.trim(),
+        _ => false,
     }
 }

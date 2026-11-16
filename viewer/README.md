@@ -6,7 +6,7 @@ The parser runs in the browser as `pmd.wasm` (contract: `docs/VIEWER-CONTRACT.md
 Run (from the repo root):
 
     python3 -m http.server 8642
-    open "http://localhost:8642/viewer/?root=/examples/car/aurora.md"
+    open "http://localhost:8642/viewer/?root=/examples/lunar/hq/lunar-programme.md&today=1967-11-15"
 
 Files: `index.html`, `style.css`, `app.js` (UI, data model, rendering), `pmd.js` (WASM wrapper), `pmd.wasm` (built by `parser/build-wasm.sh`).
 

@@ -62,7 +62,8 @@ fn key_values_are_type_checked() {
     let n = item("- [ ] Plan  by: Friday").unwrap();
     assert_eq!(n.title, "Plan  by: Friday");
     let n = item("- [ ] Plan  owner: Jan Doe").unwrap();
-    assert_eq!(n.title, "Plan  owner: Jan Doe");
+    assert_eq!(n.title, "Plan");
+    assert_eq!(n.keys["owner"][0].text, "Jan Doe");
     let n = item("- [ ] Plan  after: pack.md#x").unwrap();
     assert_eq!(n.title, "Plan  after: pack.md#x");
     let n = item("- [ ] Plan  after: 2w").unwrap();
@@ -151,8 +152,8 @@ fn leading_date_and_kinds() {
     assert_eq!(n.kind, NodeKind::Milestone);
     assert_eq!(n.date.as_ref().unwrap().text, "2027-01-29");
     assert_eq!(n.title, "Concept approval");
-    let n = item("- 2027-06-30 Pack sign-off").unwrap();
-    assert_eq!((n.kind, n.checkbox), (NodeKind::Milestone, Checkbox::None));
+    // R5b: no checkbox, no planning item
+    assert!(item("- 2027-06-30 Pack sign-off").is_none());
     // date alone is not a leading date
     let n = item("- [ ] 2027-06-30").unwrap();
     assert_eq!((n.kind, n.title.as_str()), (NodeKind::Task, "2027-06-30"));
@@ -170,7 +171,7 @@ fn leading_date_and_kinds() {
 
 #[test]
 fn leading_range_makes_task_with_range() {
-    for l in ["- [ ] 2026-01 .. 2026-03 Kickoff", "- [ ] 2026-01..2026-03 Kickoff", "- 2026-01..2026-03 Kickoff"] {
+    for l in ["- [ ] 2026-01 .. 2026-03 Kickoff", "- [ ] 2026-01..2026-03 Kickoff", "- [x] 2026-01..2026-03 Kickoff"] {
         let n = item(l).unwrap();
         assert_eq!(n.kind, NodeKind::Task, "{}", l);
         assert_eq!(n.title, "Kickoff");
@@ -193,7 +194,7 @@ fn subproject_detection() {
     assert_eq!(k("- [ ] [Pwr](p.txt#frag)"), NodeKind::Task);
     assert_eq!(k("- [ ] [Pwr](p.txt)"), NodeKind::Task);
     assert_eq!(k("- [ ] See [Pwr](p.md)"), NodeKind::Task);
-    assert_eq!(k("- 2027-01 [Pwr](p.md)"), NodeKind::Milestone);
+    assert_eq!(k("- [ ] 2027-01 [Pwr](p.md)"), NodeKind::Milestone);
 }
 
 // ---- dates §5.1 ----------------------------------------------------------------------------
@@ -324,6 +325,20 @@ fn header_property_list() {
 }
 
 #[test]
+fn commitment_by_id() {
+    let p = parse_str("# T\n\n- Owner: @j\n- Commitment: ^rel\n\n- [ ] 2027-03-31 Release  ^rel\n");
+    assert_eq!(p.commitment.as_ref().unwrap().text, "2027-03-31");
+    assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
+    let p = parse_str("# T\n\n- Owner: @j\n- Commitment: 2026-09-01 .. ^rel\n\n- [ ] 2027-03-31 Release  ^rel\n");
+    let c = p.commitment.as_ref().unwrap();
+    assert_eq!((c.start.to_string(), c.end.to_string()), ("2026-09-01".into(), "2027-03-31".into()));
+    let p = parse_str("# T\n\n- Owner: @j\n- Commitment: ^rel\n\n- [ ] Release  ^rel\n");
+    assert!(p.commitment.is_none() && codes(&p).contains(&"E-REF-LOCAL"), "{:?}", p.diagnostics);
+    let p = parse_str("# T\n\n- Owner: @j\n- Commitment: ^nope\n\n- [ ] Release  ^rel\n");
+    assert!(codes(&p).contains(&"E-REF-LOCAL"));
+}
+
+#[test]
 fn header_followed_directly_by_todo_list() {
     let src = "# T\n\n- Owner: @jan\n- Phase: planned\n- [ ] First task\n- [ ] Second\n";
     let p = parse_str(src);
@@ -334,7 +349,7 @@ fn header_followed_directly_by_todo_list() {
 
 #[test]
 fn header_ends_at_first_non_matching_item() {
-    let src = "# T\n\n- Owner: @jan\n- 2027-01-01 A milestone\n- Phase: late\n";
+    let src = "# T\n\n- Owner: @jan\n- [ ] 2027-01-01 A milestone\n- Phase: late\n";
     let p = parse_str(src);
     assert_eq!(p.header.len(), 1);
     assert_eq!(p.nodes.len(), 1);
@@ -484,7 +499,7 @@ fn graph_check_missing_public_and_ok() {
             "r/root.md",
             "# Root\n\n- Owner: @a\n\n- [ ] [Sub](sub/sub.md)\n- [ ] [Gone](gone/gone.md)\n- [ ] [ok](sub/sub.md#pub)\n- [ ] [np](sub/sub.md#priv)\n- [ ] [nx](sub/sub.md#nothing)\n- [ ] [r](https://h.example/x.md#a)\n",
         ),
-        ("r/sub/sub.md", "# Sub\n\n- Owner: @a\n\n- [ ] 2027-01-01 P  ^pub\n- [ ] 2027-01-01 Q  #private  ^priv\n"),
+        ("r/sub/sub.md", "# Sub\n\n- Owner: @b\n\n- [ ] 2027-01-01 P  ^pub\n- [ ] 2027-01-01 Q  #private  ^priv\n"),
     ]);
     let d = g.check();
     let got: Vec<(&str, u32, &str)> = d.iter().map(|x| (x.code, x.line, x.path.as_str())).collect();
@@ -526,4 +541,65 @@ fn json_is_lowercase() {
     let p = parse_str("# T\n\n- [ ] 2027-01-01 M  ^m\n");
     let j = serde_json::to_string(&p).unwrap();
     assert!(j.contains("\"nodes\"") && j.contains("\"kind\":\"milestone\"") && j.contains("\"checkbox\":\"open\""));
+}
+
+#[test]
+fn owner_takes_free_text_and_keeps_the_id() {
+    let n = item("- [ ] Review  owner: Henrik Osei  3d  ^rev").unwrap();
+    assert_eq!(n.title, "Review");
+    assert_eq!(suffix_set(&n), ["duration=3d", "id=rev", "owner=Henrik Osei"]);
+    let n = item("- [ ] Test  by: Friday  ^t").unwrap();
+    assert_eq!(n.id.as_deref(), Some("t"));
+    assert_eq!(n.title, "Test  by: Friday");
+}
+
+#[test]
+fn dated_deliverable_is_an_exposed_milestone_with_a_link() {
+    let n = item("- [ ] 2027-06-30 [Freeze](plan.md#freeze)  ^f").unwrap();
+    assert_eq!(n.kind, NodeKind::Milestone);
+    assert_eq!(n.title, "Freeze");
+    assert_eq!(n.link.as_ref().unwrap().target, "plan.md#freeze");
+    let g = graph_of(&[
+        ("r/root.md", "# Root\n\n- Owner: @a\n\n- [ ] 2027-06-30 [F](sub/sub.md#priv)\n"),
+        ("r/sub/sub.md", "# Sub\n\n- Owner: @b\n\n- [ ] 2027-01-01 Q  #private  ^priv\n"),
+    ]);
+    assert!(g.check().iter().any(|d| d.code == "E-REF-PUBLIC" && d.line == 5));
+}
+
+#[test]
+fn r2b_missing_target_lists_exposed_milestones() {
+    let g = graph_of(&[("a.md", "# A\n\n- [ ] [X](b.md#nope)\n"), ("b.md", "# B\n\n- [ ] 2027-01-01 One ^one\n- [ ] 2027-02-01 Two ^two\n")]);
+    let d = g.check();
+    assert!(d[0].message.ends_with("(exposed: ^one 2027-01-01, ^two 2027-02-01)"), "{}", d[0].message);
+}
+
+#[test]
+fn r2d_dated_deliverable_takes_fragment_id() {
+    let p = parse("a.md", "# A\n\n- [ ] 2027-01-01 [X](b.md#one)\n- [ ] 2027-01-02 [Y](b.md#two) ^two\n- [ ] 2027-01-03 [Z](b.md#two)\n");
+    assert_eq!(p.nodes[0].id.as_deref(), Some("one"));
+    assert_eq!(p.nodes[2].id, None);
+}
+
+#[test]
+fn r2e_keylike_prose_bullet_warns() {
+    let p = parse("a.md", "# A\n\n## H\n\n- Ship it by: 2027-01-01\n- plain note\n");
+    assert_eq!(p.diagnostics.iter().filter(|d| d.code == "W-KEYLIKE").count(), 1);
+}
+
+#[test]
+fn dated_item_without_checkbox_is_prose_with_hint() {
+    let p = parse_str("# T\n\n- Owner: @jan\n\n- [ ] x\n- 2027-01-01 Note\n- 2027-01-01 Gate  ^g\n- 2027-01-01 Work  2w\n");
+    assert_eq!(p.nodes.len(), 1);
+    assert_eq!(codes(&p).iter().filter(|c| **c == "W-KEYLIKE").count(), 2);
+}
+
+#[test]
+fn graph_messages_show_link_as_written() {
+    let g = graph_of(&[
+        ("r/a/root.md", "# Root\n\n- Owner: @a\n\n- [ ] [S](../b/sib.md#nx)\n- [ ] [G](gone.md)\n"),
+        ("r/b/sib.md", "# Sib\n\n- Owner: @a\n"),
+    ]);
+    let msgs: Vec<String> = g.check().into_iter().map(|d| d.message).collect();
+    assert!(msgs.iter().any(|m| m.starts_with("no item ^nx in ../b/sib.md")), "{:?}", msgs);
+    assert!(msgs.iter().any(|m| m == "linked project not found: gone.md"), "{:?}", msgs);
 }

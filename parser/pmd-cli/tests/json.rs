@@ -82,3 +82,43 @@ fn org_states_are_live_and_fronts_hide_plans() {
     let (c, out) = chk("teams/enclosures/enclosures.md");
     assert_eq!((c, out.trim()), (0, ""), "{}", out);
 }
+
+#[test]
+fn fmt_prints_changed_files_only() {
+    let dir = std::env::temp_dir().join(format!("pmd-fmt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (a, b) = (dir.join("a.md"), dir.join("b.md"));
+    std::fs::write(&a, "# T\n\n* [ ]   Task  2w\n").unwrap();
+    std::fs::write(&b, "# T\n\n- [ ] Task  2w\n").unwrap();
+    let (an, bn) = (a.to_str().unwrap(), b.to_str().unwrap());
+    let (code, out) = run(&["fmt", an, bn]);
+    assert_eq!((code, out.trim()), (0, an));
+    let (code, out) = run(&["fmt", an, bn]);
+    assert_eq!((code, out.as_str()), (0, ""));
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn tree_depth_forms_and_file_position() {
+    let f = top();
+    let f = f.to_str().unwrap();
+    let (c1, a) = run(&["tree", f, "--depth", "2", "--today", "2026-11-15"]);
+    let (c2, b) = run(&["tree", f, "--depth=2", "--today=2026-11-15"]);
+    let (c3, d) = run(&["tree", "--depth", "2", f, "--today", "2026-11-15"]);
+    assert!(c1 < 2 && c2 < 2 && c3 < 2, "usage error");
+    assert!(!a.is_empty());
+    assert_eq!(a, b);
+    assert_eq!(a, d);
+    let (_, shallow) = run(&["tree", f, "--today", "2026-11-15"]);
+    assert!(a.lines().count() >= shallow.lines().count());
+}
+
+#[test]
+fn check_takes_several_files() {
+    let (a, b) = (top(), org("teams/backend/backend.md"));
+    let (c, out) = run(&["check", a.to_str().unwrap(), b.to_str().unwrap(), "--today", "2026-11-15"]);
+    let (c1, _) = run(&["check", a.to_str().unwrap(), "--today", "2026-11-15"]);
+    let (c2, _) = run(&["check", b.to_str().unwrap(), "--today", "2026-11-15"]);
+    assert_eq!(c, c1.max(c2));
+    assert!(out.is_empty() || out.contains(':'));
+}

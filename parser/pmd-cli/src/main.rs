@@ -68,12 +68,17 @@ fn all_diags(g: &Graph) -> Vec<Diagnostic> {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: pmd parse FILE | check FILE [--deep] [--strict] [--today D] [--json] | schedule FILE [--today D] [--json] | fmt FILE [--check] | tree FILE [--depth N]"
+        "usage: pmd parse FILE | check FILE... [--deep] [--strict] [--today D] [--json] | schedule FILE... [--today D] [--json] | fmt FILE... [--check] | tree FILE... [--depth N] [--today D]"
     );
     exit(2)
 }
 
 fn today() -> String {
+    if let Ok(t) = std::env::var("PMD_TODAY") {
+        if !t.is_empty() {
+            return t;
+        }
+    }
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     Civil::from_days((secs / 86400) as i64).to_string()
 }
@@ -83,38 +88,46 @@ fn main() {
     if args.len() < 2 {
         usage();
     }
-    // FILE may come before or after the options.
-    let (mut file, mut opts) = (None, Vec::new());
+    // FILEs may come before or after the options; check, schedule and tree take several.
+    let (mut files, mut opts) = (Vec::new(), Vec::new());
     let mut it = args[1..].iter();
     while let Some(a) = it.next() {
-        if matches!(a.as_str(), "--today" | "--depth") {
+        if let Some((k, v)) = a.split_once('=').filter(|(k, _)| matches!(*k, "--today" | "--depth")) {
+            opts.push(k.to_string());
+            opts.push(v.to_string());
+        } else if matches!(a.as_str(), "--today" | "--depth") {
             opts.push(a.clone());
             opts.extend(it.next().cloned());
-        } else if a.starts_with("--") || file.is_some() {
+        } else if a.starts_with("--") {
             opts.push(a.clone());
         } else {
-            file = Some(a.clone());
+            files.push(a.clone());
         }
     }
-    let Some(file) = file else { usage() };
-    let file = &file;
+    if files.is_empty() || (files.len() > 1 && !matches!(args[0].as_str(), "check" | "schedule" | "tree" | "fmt")) {
+        usage();
+    }
+    let file = &files[0];
+    let multi = |f: &dyn Fn(&str) -> i32| -> ! { exit(files.iter().map(|x| f(x)).max().unwrap_or(0)) };
     match args[0].as_str() {
         "parse" => cmd_parse(file),
-        "check" => cmd_check(file, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep"), has_flag(&opts, "--strict")),
-        "schedule" => cmd_schedule(file, today_arg(&opts), has_flag(&opts, "--json")),
-        "fmt" => cmd_fmt(file, &opts),
+        "check" => multi(&|f| cmd_check(f, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep"), has_flag(&opts, "--strict"))),
+        "schedule" => multi(&|f| cmd_schedule(f, today_arg(&opts), has_flag(&opts, "--json"))),
+        "fmt" => cmd_fmt(&args[1..]),
         "tree" => {
             let mut depth = 1usize;
-            let mut i = 2;
-            while i < args.len() {
-                if args[i] == "--depth" && i + 1 < args.len() {
-                    depth = args[i + 1].parse().unwrap_or_else(|_| usage());
+            let mut i = 0;
+            while i < opts.len() {
+                if opts[i] == "--depth" && i + 1 < opts.len() {
+                    depth = opts[i + 1].parse().unwrap_or_else(|_| usage());
+                    i += 2;
+                } else if opts[i] == "--today" {
                     i += 2;
                 } else {
                     usage();
                 }
             }
-            cmd_tree(file, depth)
+            multi(&|f| cmd_tree(f, depth, today_arg(&opts)))
         }
         _ => usage(),
     }
@@ -147,6 +160,8 @@ fn today_arg(rest: &[String]) -> Civil {
         if rest[i] == "--today" && i + 1 < rest.len() {
             t = rest[i + 1].clone();
             i += 2;
+        } else if rest[i] == "--depth" {
+            i += 2;
         } else if matches!(rest[i].as_str(), "--json" | "--deep" | "--strict") {
             i += 1;
         } else {
@@ -163,11 +178,13 @@ fn today_arg(rest: &[String]) -> Civil {
 }
 
 /// Declared dates of every project in the loaded graph (read live; nothing is stored).
-fn interfaces_for(g: &Graph) -> Interfaces {
+fn interfaces_for(g: &Graph, today: Civil) -> Interfaces {
     let mut ifs = Interfaces::new();
     for p in g.projects() {
         ifs.insert(normalize(&p.path), Interface::from_project(p));
     }
+    let ps: Vec<(String, &Project)> = g.projects().iter().map(|p| (normalize(&p.path), p)).collect();
+    add_forecasts(&mut ifs, &ps, today);
     ifs
 }
 
@@ -198,7 +215,7 @@ fn diag_json(d: &Diagnostic) -> serde_json::Value {
 
 /// Default: FILE and its direct links, read live (one level). `--deep`: the
 /// whole graph reachable from FILE. `--strict`: warnings fail too (info never does).
-fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) {
+fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) -> i32 {
     let ld = if deep { Loader::load(root) } else { Loader::load_depth(root, 1) };
     let g = ld.graph.as_ref().unwrap();
     let rootn = normalize(root);
@@ -206,9 +223,9 @@ fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) {
     if !deep {
         diags.retain(|d| normalize(&d.path) == rootn);
     }
-    let ifs = interfaces_for(g);
+    let ifs = interfaces_for(g, today);
     for p in g.projects().iter().filter(|p| deep || normalize(&p.path) == rootn) {
-        diags.extend(contract_diags(p, &lookup_in(g)));
+        diags.extend(contract_diags(p, today, &lookup_in(g)));
         let mut c = p.clone();
         let before = c.diagnostics.len();
         schedule(&mut c, today, &ifs);
@@ -242,9 +259,7 @@ fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) {
             println!("remote: {} (not checked)", r);
         }
     }
-    if failed {
-        exit(1);
-    }
+    failed as i32
 }
 
 fn span(f: &Forecast) -> String {
@@ -252,20 +267,20 @@ fn span(f: &Forecast) -> String {
     format!("{} .. {}", s(f.start), s(f.end))
 }
 
-fn cmd_schedule(root: &str, today: Civil, json: bool) {
+fn cmd_schedule(root: &str, today: Civil, json: bool) -> i32 {
     let ld = Loader::load_depth(root, 1);
     let g = ld.graph.as_ref().unwrap();
     let Some(p0) = g.get(root) else {
         eprintln!("pmd: cannot read {}", root);
-        exit(2);
+        return 2;
     };
-    let ifs = interfaces_for(g);
+    let ifs = interfaces_for(g, today);
     let mut p = p0.clone();
     schedule(&mut p, today, &ifs);
     if json {
         // The same Project JSON as `pmd parse`, with the forecasts the scheduler filled in.
         println!("{}", serde_json::to_string_pretty(&p).unwrap());
-        return;
+        return 0;
     }
     let pf = p.forecast.unwrap();
     println!("{}  {}{}", p.title, span(&pf), if pf.conflict { "  !CONFLICT" } else { "" });
@@ -279,6 +294,15 @@ fn cmd_schedule(root: &str, today: Civil, json: bool) {
                 _ => "",
             };
             let decl = f.declared_end.map(|d| format!("  (declared {})", d)).unwrap_or_default();
+            let late = match (n.checkbox, n.done_date(), f.declared_end) {
+                (Checkbox::Done, Some(d), Some(e)) if d > e => Some(d.to_days() - e.to_days()),
+                _ => None,
+            };
+            let decl = match f.slack_days {
+                _ if late.is_some() => format!("{}  done {}d late", decl, late.unwrap()),
+                Some(s) if f.declared_end.is_some() => format!("{}  slack {:+}d", decl, s),
+                _ => decl,
+            };
             println!("{}{}{}  {}{}{}", "  ".repeat(level), mark, title, span(&f), decl, if f.conflict { "  !CONFLICT" } else { "" });
             walk(&n.children, level + 1);
         }
@@ -287,54 +311,50 @@ fn cmd_schedule(root: &str, today: Civil, json: bool) {
     for d in p.diagnostics.iter().filter(|d| matches!(d.code, "E-CONFLICT" | "E-CYCLE")) {
         println!("{}:{}: {} {}", p.path, d.line, d.code, d.message);
     }
+    0
 }
 
-/// `pmd fmt FILE [--check]`: rewrite FILE in canonical form (FORMAT §13).
-fn cmd_fmt(file: &str, rest: &[String]) {
-    let mut check = false;
-    let mut i = 0;
-    while i < rest.len() {
-        match rest[i].as_str() {
-            "--check" => check = true,
-            _ => usage(),
-        }
-        i += 1;
+/// `pmd fmt FILE... [--check]`: rewrite each FILE in canonical form (FORMAT §13); prints the
+/// path of every file that changed (or, with `--check`, would change).
+fn cmd_fmt(rest: &[String]) {
+    let check = rest.iter().any(|a| a == "--check");
+    let files: Vec<&String> = rest.iter().filter(|a| !a.starts_with("--")).collect();
+    if files.is_empty() || rest.iter().any(|a| a.starts_with("--") && a != "--check") {
+        usage();
     }
-    let bytes = match fs::read(file) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("pmd: {}: {}", file, e);
-            exit(2)
-        }
-    };
-    let src = String::from_utf8_lossy(&bytes).into_owned();
-    let out = fmt::format(&src);
-    if check {
+    let mut changed = false;
+    for file in files {
+        let src = read_or_die(file);
+        let out = fmt::format(&src);
         if out != src {
+            changed = true;
             println!("{}", file);
-            exit(1);
+            if !check {
+                if let Err(e) = fs::write(file, out) {
+                    eprintln!("pmd: {}: {}", file, e);
+                    exit(2);
+                }
+            }
         }
-        return;
     }
-    if out != src {
-        if let Err(e) = fs::write(file, out) {
-            eprintln!("pmd: {}: {}", file, e);
-            exit(2);
-        }
+    if check && changed {
+        exit(1);
     }
 }
 
 struct TreeCtx {
     /// Direct links read once, live (`None`: not readable here).
     kids: HashMap<String, Option<Project>>,
+    today: Civil,
 }
 
-fn cmd_tree(root: &str, depth: usize) {
-    let mut ctx = TreeCtx { kids: HashMap::new() };
+fn cmd_tree(root: &str, depth: usize, today: Civil) -> i32 {
+    let mut ctx = TreeCtx { kids: HashMap::new(), today };
     let path = normalize(root);
     let src = read_or_die(&path);
     let proj = parse(&path, &src);
     tree_project(&mut ctx, &proj, depth, 0, &mut vec![path.clone()]);
+    0
 }
 
 fn read_child(ctx: &mut TreeCtx, target: &str) {
@@ -353,7 +373,10 @@ fn read_child(ctx: &mut TreeCtx, target: &str) {
 
 fn tree_project(ctx: &mut TreeCtx, p: &Project, depth: usize, level: usize, stack: &mut Vec<String>) {
     let ind = "  ".repeat(level);
-    let c = p.commitment.as_ref().map(|c| format!("  commitment={}", c.text)).unwrap_or_default();
+    let mut c = p.commitment.as_ref().map(|c| format!("  commitment={}", c.text)).unwrap_or_default();
+    if let Some(d) = &p.done {
+        c.push_str(&format!("  done={}", d.text));
+    }
     println!("{}{}{}  ({})", ind, p.title, c, p.path);
     let mut targets = Vec::new();
     p.walk(|n| {
@@ -367,16 +390,27 @@ fn tree_project(ctx: &mut TreeCtx, p: &Project, depth: usize, level: usize, stac
     let states: HashMap<u32, State> = {
         let kids = &ctx.kids;
         let lookup = |t: &str| -> Option<Child<'_>> { if is_remote(t) { Some(Child::Unknown) } else { kids.get(t).and_then(|k| k.as_ref()).map(Child::Read) } };
-        contracts_of(p, &lookup).into_iter().map(|c| (c.line, c.state)).collect()
+        contracts_of(p, ctx.today, &lookup).into_iter().map(|c| (c.line, c.state)).collect()
     };
     tree_nodes(ctx, p, &p.nodes, &states, depth, level + 1, stack);
 }
 
 fn contract_summary(ctx: &TreeCtx, states: &HashMap<u32, State>, n: &Node, target: &str) -> String {
     let mut s = String::new();
-    if let Some(Some(c)) = ctx.kids.get(target) {
-        if let Some(cm) = &c.commitment {
-            s.push_str(&format!(" commitment={}", cm.text));
+    let frag = n.link.as_ref().and_then(|l| split_fragment(&l.target).1);
+    if let (Some(f), Some(Some(c))) = (frag, ctx.kids.get(target)) {
+        if let Some(i) = interface_items(c).into_iter().find(|i| i.id.as_deref() == Some(f)) {
+            s.push_str(&format!(" {}", i.date));
+            if i.checkbox == 'x' {
+                if let Some(d) = &i.done {
+                    s.push_str(&format!(" done {}", d));
+                    if let DateParse::Ok(dd, _) = parse_date(d) {
+                        if dd > i.end {
+                            s.push_str(&format!(" {}d late", dd.to_days() - i.end.to_days()));
+                        }
+                    }
+                }
+            }
         }
     }
     if let Some(st) = states.get(&n.line) {
@@ -400,6 +434,11 @@ fn tree_nodes(ctx: &mut TreeCtx, p: &Project, nodes: &[Node], states: &HashMap<u
         }
         match n.kind {
             NodeKind::Heading => println!("{}## {}{}", ind, n.title, extra),
+            NodeKind::Milestone if n.link.is_some() => {
+                let link = n.link.as_ref().unwrap();
+                let target = resolve(&p.path, &link.target);
+                println!("{}* <> {}{}  -> {}{}", ind, link.text, extra, link.target, contract_summary(ctx, states, n, &target));
+            }
             NodeKind::Milestone => println!("{}* {}{}", ind, n.title, extra),
             NodeKind::Task => {
                 let m = match n.checkbox {

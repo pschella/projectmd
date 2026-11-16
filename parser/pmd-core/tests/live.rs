@@ -8,7 +8,7 @@ fn p(path: &str, src: &str) -> Project {
 
 fn states(parent: &Project, kids: &[&Project]) -> Vec<(u32, State)> {
     let lookup = |t: &str| kids.iter().find(|k| k.path == t).map(|k| Child::Read(*k));
-    contracts_of(parent, &lookup).into_iter().map(|c| (c.line, c.state)).collect()
+    contracts_of(parent, Civil::new(2020,1,1), &lookup).into_iter().map(|c| (c.line, c.state)).collect()
 }
 
 const C: &str = "# C\n\n- Owner: @x\n- Commitment: 2027-06-30\n\n- [ ] 2027-06-30 Thing  ^m\n- [x] 2027-01-31 Early  ^e\n- [ ] 2027-03-31 Dropped  ^d\n";
@@ -47,7 +47,7 @@ fn a_link_without_by_has_no_contract() {
 fn unreadable_remote_link_is_unknown_and_warns_only_with_by() {
     let a = p("a.md", "# A\n\n- [ ] [R](https://x.example.org/r.md)  by: 2027-06-30\n- [ ] [S](https://x.example.org/s.md)\n");
     let lookup = |t: &str| if is_remote(t) { Some(Child::Unknown) } else { None };
-    let d = contract_diags(&a, &lookup);
+    let d = contract_diags(&a, Civil::new(2020,1,1), &lookup);
     assert_eq!(d.len(), 1);
     assert_eq!((d[0].code, d[0].line), ("W-UNKNOWN", 3));
 }
@@ -95,4 +95,16 @@ fn owner_with_access_sees_the_plan_contradict_the_front() {
     // the plan's series milestone (2028-03-20) is after the front promise (2028-03-15)
     assert!(conflicts.iter().any(|d| d.message.contains("Series qualified")), "{:?}", front.diagnostics);
     assert!(!conflicts.iter().any(|d| d.message.contains("Pilot delivered")), "pilot is on time");
+}
+
+#[test]
+fn r8a_need_by_passed_and_not_delivered_is_overdue() {
+    let c = p("c.md", C);
+    let a = p("a.md", "# A\n\n- [ ] [C](c.md)  by: 2027-09-30\n- [ ] [M](c.md#m)  by: 2027-03-31\n- [ ] [E](c.md#e)  by: 2027-03-31\n");
+    let lookup = |t: &str| if t == "c.md" { Some(Child::Read(&c)) } else { None };
+    let s: Vec<State> = contracts_of(&a, Civil::new(2028, 1, 1), &lookup).into_iter().map(|x| x.state).collect();
+    assert_eq!(s, [State::Overdue, State::Overdue, State::Delivered]);
+    let d = contract_diags(&a, Civil::new(2028, 1, 1), &lookup);
+    assert_eq!(d[0].code, "W-OVERDUE");
+    assert!(d[0].message.contains("is overdue: needed by 2027-09-30, not delivered"), "{}", d[0].message);
 }

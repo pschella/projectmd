@@ -98,8 +98,8 @@ fn checkbox_and_bullet_spelling() {
 
 #[test]
 fn leading_date_and_range_spacing() {
-    let src = "# P\n\n- 2027-03-01   Launch  #public\n- 2027-01..2027-02 Seat concept\n";
-    assert_eq!(format(src), "# P\n\n- 2027-03-01 Launch  #public\n- 2027-01 .. 2027-02 Seat concept\n");
+    let src = "# P\n\n- [ ] 2027-03-01   Launch  #public\n- [ ] 2027-01..2027-02 Seat concept\n";
+    assert_eq!(format(src), "# P\n\n- [ ] 2027-03-01 Launch  #public\n- [ ] 2027-01 .. 2027-02 Seat concept\n");
 }
 
 #[test]

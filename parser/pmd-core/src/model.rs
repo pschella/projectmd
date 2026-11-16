@@ -147,6 +147,8 @@ pub struct Forecast {
     #[serde(serialize_with = "ser_date")]
     pub declared_end: Option<Civil>,
     pub conflict: bool,
+    /// Declared end minus forecast end, in days (negative in conflict).
+    pub slack_days: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -185,7 +187,11 @@ impl Node {
     }
     /// A link node: sub-project or deliverable.
     pub fn is_link_node(&self) -> bool {
-        matches!(self.kind, NodeKind::Subproject | NodeKind::Deliverable)
+        self.link.is_some()
+    }
+    /// The link of a deliverable or dated deliverable (target has a `#fragment`).
+    pub fn deliverable_link(&self) -> Option<&LinkInfo> {
+        self.link.as_ref().filter(|l| l.target.contains('#') && self.kind != NodeKind::Subproject)
     }
     pub fn walk<'a>(&'a self, f: &mut impl FnMut(&'a Node)) {
         f(self);
@@ -230,6 +236,20 @@ pub struct Project {
 }
 
 impl Project {
+    /// Like `walk`, but does not descend into a cancelled `[-]` item (it cancels its descendants).
+    pub fn walk_live<'a>(&'a self, mut f: impl FnMut(&'a Node)) {
+        fn go<'a>(n: &'a Node, f: &mut impl FnMut(&'a Node)) {
+            f(n);
+            if n.checkbox != Checkbox::Cancelled {
+                for c in &n.children {
+                    go(c, f);
+                }
+            }
+        }
+        for n in &self.nodes {
+            go(n, &mut f);
+        }
+    }
     pub fn walk<'a>(&'a self, mut f: impl FnMut(&'a Node)) {
         for n in &self.nodes {
             n.walk(&mut f);
@@ -251,7 +271,8 @@ pub fn fix_hint(code: &str) -> Option<&'static str> {
     Some(match code {
         "E-SYNTAX" => "Give the key a value or close the bracket",
         "E-REF-LOCAL" => "Correct the id, or add `^id` to the target item",
-        "E-REF-PUBLIC" => "Ask the owner to expose a milestone (remove `#private`, or add a milestone that is `after:` the item)",
+        "E-REF-PUBLIC" => "The target must be a dated milestone not marked #private: ask its owner to add one, or depend on the whole project",
+        "W-OVERDUE" => "Ask the child's owner for the delivery (if it was delivered, the owner ticks the milestone or sets `Done:`), or move the `by:` if the need changed",
         "W-DISPUTED" => "Agree a new date: the parent moves its `by:` or the child moves its Commitment",
         "W-UNKNOWN" => "Check the link and its access",
         "I-REQUESTED" => "Wait, or ask the child's owner",

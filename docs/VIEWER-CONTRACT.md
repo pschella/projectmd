@@ -19,7 +19,7 @@ strings cross the boundary.
 
 ```json
 {
-  "path": "examples/car/aurora.md",
+  "path": "examples/lunar/hq/lunar-programme.md",
   "src": "<markdown text>",
   "today": "2026-11-14",
   "interfaces": {
@@ -51,8 +51,9 @@ This is the same `Project` JSON as `pmd parse FILE`, plus forecasts:
   project's span over its top-level nodes. `declared_end` is the end of its Commitment;
 - `Project.diagnostics` also includes the scheduler's `E-CONFLICT` and `E-CYCLE`.
 
-Contract states (`requested`/`agreed`/`disputed`/`delivered`) are not part of the result; the
-viewer shows declared against forecast dates, and `pmd check` / `pmd tree` report states.
+Contract states: an `interfaces` entry may also carry `"src"`, the child's source text. The parser
+parses it and returns `Project.contracts`: `{ "<line>": "requested"|"agreed"|"disputed"|"overdue"|"delivered"|"unknown" }`
+for each unfinished sub-project/deliverable line with a `by:` (same rules as `pmd tree`). Without `src`, no state.
 
 Forecast rules follow FORMAT §7.1–7.3:
 - A sub-project's end is its Commitment from `interfaces`; while the child has none, the line's own estimate (duration, range, `after:`) or its `by:`. Its start comes from its own `after:`/range, else the Commitment start.

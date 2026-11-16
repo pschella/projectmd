@@ -47,11 +47,11 @@ item with children (`- [ ] Phase 1  2026-11 .. 2027-06`), never a heading.
 
 ### 3.1 Shape and kinds
 ```
-- [checkbox] [leading date] title  suffix
+- [ ] [leading date] title  suffix
 ```
 
-- **Planning item**: a list item with a checkbox or a leading date. Anything else is **prose**
-  and is ignored, except property sub-bullets (3.4).
+- **Planning item**: a list item with a checkbox. Anything else is **prose** (a dated note stays a
+  note) and is ignored, except property sub-bullets (3.4). `W-KEYLIKE` hints at a forgotten `- [ ]`.
 - **Checkbox**: `[ ]` open · `[x]` done · `[-]` cancelled (does not block successors, never
   overdue; on a milestone or deliverable: withdrawn or rejected). Acceptance of a
   sub-project is the parent's own `[x]` on its line. A **gate** is just a milestone whose owner
@@ -77,10 +77,10 @@ A `` `code span` `` is never a token, so `` `after: ^x` `` stays in the title.
 
 | Key | Value | Repeatable | Meaning |
 |---|---|---|---|
-| `owner:` | `Name <email>` or one word (`@jan`) | no | who does it |
-| `after:` | local `^id` or date | yes: all must finish | starts the day after that item (or date) ends |
+| `owner:` | any text: `Henrik Osei`, `Name <email>`, `@jan` (runs to the next suffix token) | no | who does it |
+| `after:` | local `^id` or date | yes: all must finish | starts the day after that item ends; a date is the earliest start, inclusive |
 | `by:` | date, coarse date or local `^id` | no | on a link line: the need-by the parent asks; inline: the declared end |
-| `done:` | exact date | no | when a `[x]` item was completed; written by whoever ticks it |
+| `done:` | date expression | no | when a `[x]` item was completed; written by whoever ticks it; a month, quarter or range counts as its end |
 
 `after:` and `by:` never name another file: a cross-file edge is a **link line** (a sub-project or a
 deliverable, §6) that other items point at by `^id`. Any other `word:` is text. A value is one atom: a word, a `Name <email>` person, a
@@ -112,7 +112,7 @@ The property sub-bullets directly under the H1 title are the header:
 | Key | Value | Notes |
 |---|---|---|
 | `Owner` | one person | missing is W-NO-OWNER (§11) |
-| `Commitment` | date or range | what the project promises its parents; its end is the declared end. Optional: absent means it accepts the parent's `by:` |
+| `Commitment` | date or range | what the project promises its parents, for the whole file (later phases: a separate project); its end is the declared end. `^id` (or `DATE .. ^id`) names a local item with a declared end, whose date is then the Commitment: one place to move a promise. Optional: absent means it accepts the parent's `by:` |
 | `Done` | exact date | the project was delivered on this date |
 
 Keys are case-insensitive. Any other key (`Stakeholders`, `Start date`, ...) is kept
@@ -157,8 +157,9 @@ link line:
 |---|---|
 | `[Powertrain](powertrain/powertrain.md)` | sub-project: the whole file; its end is the child's Commitment |
 | `[Pack B-samples](battery-pack.md#b-samples)` | deliverable: one interface milestone of another project (remote URLs work the same) |
+| `2027-06-30 [Pack B-samples](battery-pack.md#b-samples)` | dated deliverable: a milestone (exposed unless `#private`) whose declared date is the promise and whose forecast end is the linked milestone's date; `E-CONFLICT` if that is later. Without its own `^id` it takes the link's fragment as id (if free in the file) |
 
-`^id` names an item in this file; ids are unique within a file. A deliverable must target a milestone that is not `#private` (§8), else `E-REF-PUBLIC`.
+`^id` names an item in this file; ids are unique within a file. A deliverable must target a dated milestone that is not `#private` (§8), else `E-REF-PUBLIC`.
 
 ### 6.1 Promotion
 
@@ -179,7 +180,7 @@ estimate (duration, range, `after:`); once the child promises, the promise is th
 ### 7.1 Forecast algorithm
 
 ```
-start = latest of: declared start, forecast end of every `after:` node
+start = latest of: declared start, day after the forecast end of every `after:` node, every `after:` date
 end   = start + duration       if the node has a duration
       = latest child end       else if it has children
       = declared end           otherwise
@@ -187,11 +188,15 @@ an unfinished node never ends before today
 a milestone never ends before its start
 ```
 
-A task that follows another starts the day after it ends; a milestone is a point in time and
-may fall on the day its predecessor ends. A cancelled node
-(`[-]`) is not waited for. A sub-project's children are in another file, so its end is that
+A project with `Done:` is finished: its span ends at that date. Work with an estimate that follows another item starts the day after it ends; a point (a
+milestone, a deliverable, or a task with no estimate and no sub-items) may fall on the day its
+predecessor ends. A cancelled node
+(`[-]`) is not waited for, and cancels its descendants (no forecast, no conflicts, not exposed). A sub-project's children are in another file, so its end is that
 file's Commitment, or, while the child has none, the line's own estimate. A deliverable's end is the
-milestone's date. Tools given the same files must compute the same forecast.
+milestone's date; so is a dated deliverable's forecast end (its declared date stays the promise).
+`after:` on a link line delays the earliest start of the child in the parent's view. A done item (`[x]`, milestones and dated items with estimates too) with `done: DATE` ends on that date, so successors follow the actual and slack shows an early finish; without `done:` it keeps its own forecast but imposes no constraint on successors (finished, date unknown). When work has started, tick its predecessors; record the actual start with `after: DATE`. An unfinished item whose declared end is before today reports `E-CONFLICT` "is overdue: not marked done by DATE". In a file whose header has `Done:` nothing is clamped to today and no conflict or overdue is reported. A dated deliverable (leading date, whole-title link to `file#id`) forecasts from the linked milestone's own forecast and earliest end (that file scheduled one hop, no deeper), and reports `E-CONFLICT` when that is later than its date.
+A dated item with an estimate (`2027-06-30 Qualify  26w  after: ^x`) is work with a deadline: its forecast end is start + estimate, its declared end the date (exposed as a milestone; `E-CONFLICT` if later).
+`pmd schedule` shows `slack +45d` for items with a declared end (declared end minus the earliest possible end from predecessors, estimate and children, not clamped to the declared date; negative in conflict); with `--json` it is `slack_days` in each `forecast`. Tools given the same files must compute the same forecast.
 
 ### 7.2 Conflict rule
 
@@ -219,9 +224,11 @@ it passes through.
 ## 8 Interfaces and fronts
 
 A project's **interface** is the part of its own file that other projects may rely on: the header
-`Owner`, `Commitment`, `Done` and every milestone (an item with a leading date) not tagged
+`Owner`, `Commitment`, `Done` and every milestone (a checkbox item with a leading date) not tagged
 `#private`. Nothing else is: tasks, sub-project and deliverable lines are internal. To expose
-something else, add a milestone that is `after:` it. The interface is derived by reading the file;
+something else, add a milestone that is `after:` it. Between two files with the same `Owner:`
+(exact text, trimmed) a deliverable or dated deliverable may target any item with an `^id`; its end is that
+item's forecast (earliest) end. Across different owners only the interface is referable. The interface is derived by reading the file;
 no separate file is defined. Changes: a date moved earlier or a milestone added is non-breaking;
 moved later, removed, renamed or made `#private` is breaking (consumers see `disputed`). A
 withdrawn milestone is marked `[-]`; the replacement is named in prose.
@@ -230,7 +237,8 @@ withdrawn milestone is marked `[-]`; the replacement is named in prose.
 
 When the plan itself must stay private, the owner keeps two **ordinary project files**: the
 private plan, and a thin **front** the parent may read. The front's milestones are the promise;
-its deliverable lines point into the plan.
+its **dated deliverables** point into the plan: each is a milestone whose date is the promise and
+whose link says how it is met. The private plan needs no Commitment of its own: the front holds the promise.
 
 ```markdown
 # Enclosures
@@ -238,14 +246,13 @@ its deliverable lines point into the plan.
 - Owner: Marit Solheim <marit.solheim@example.com>
 - Commitment: 2028-03-15
 
-- [ ] 2027-06-30 Pilot enclosures delivered  after: ^pilot  ^pilot-enclosures
-- [ ] 2028-03-15 Series enclosures qualified  after: ^series  ^series-ready
-
-- [ ] [Pilot build](https://store.internal.example.org/enclosures/plan.md#pilot)  ^pilot
-- [ ] [Series validation](https://store.internal.example.org/enclosures/plan.md#series)  ^series
+- [ ] 2027-06-30 [Pilot enclosures delivered](https://store.internal.example.org/enclosures/plan.md#pilot)  ^pilot-enclosures
+- [ ] 2028-03-15 [Series enclosures qualified](https://store.internal.example.org/enclosures/plan.md#series)  ^series-ready
 ```
 
-- The declared dates are the promise. They change only when the owner moves a promise.
+- The declared dates are the promise. They change only when the owner moves a promise. The
+  linked item is the forecast: the front and the plan have the same `Owner:`, so it may be any
+  item with an `^id` (not only an exposed milestone); its end is its forecast end.
 - The owner's tools can read the plan: a plan that forecasts past a front milestone is
   `E-CONFLICT` in the owner's own check, which keeps plan and promise honest.
 - A parent's tools read the front only. Links into the plan are not followed, so they are not
@@ -262,17 +269,18 @@ line, matched by the child's promise.
 
 A link line without `by:` is a dependency, not a contract, and has no status. The **state** is
 computed live, never stored, from the parent's `by:` and the child's file as it is now (one hop),
-tested in this order:
+tested in this order (`delivered`, `unknown`, `requested`, `overdue`, `disputed`, `agreed`; the first that holds wins):
 
 | State | Meaning |
 |---|---|
 | `delivered` | the child has `Done:`, or the milestone is `[x]` |
 | `requested` | the parent asks with `by:`, the child has made no promise yet |
+| `overdue` | the `by:` is before today and the target is not delivered (wins over `disputed` and `agreed`) |
 | `disputed` | the promise is later than the `by:`, or the target was withdrawn |
 | `agreed` | the promise is no later than the `by:` |
 | `unknown` | the child cannot be read here: no state; the parent schedules the line at its own `by:` or estimate |
 
-Acceptance is the parent's own `[x]` on its line. A child that edits its promise changes the state
+A sub-project or deliverable line whose target is done ends at the target's done date (its declared date if no `done:`) in the parent's schedule; the parent need not tick it. Acceptance is the parent's own `[x]` on its line. What-if scenarios are copies or branches of the files, evaluated with `pmd schedule`. A child that edits its promise changes the state
 on the next read of the parent. Reading *A* costs 1 + *d* reads (*d* = direct links); nothing
 depends on the size of the graph, and `pmd check --deep` is the opt-in walk of everything.
 **Scaling works like Go compilation:** if A links B and B links C, A reads B only; B's owner
@@ -290,7 +298,7 @@ dependency types other than finish-to-start, ticket import.
 ## 11 Validation rules
 
 E = error, W = warning, I = info. The message is what a person sees. Negotiation is not an error:
-`pmd check --strict` turns warnings into errors, for CI.
+`pmd check --strict` turns warnings into errors, for CI. `--today D` sets the date used for "today"; the `PMD_TODAY=YYYY-MM-DD` environment variable is its default.
 
 | Code | Rule | Message | Suggested fix |
 |---|---|---|---|
@@ -298,20 +306,21 @@ E = error, W = warning, I = info. The message is what a person sees. Negotiation
 | E-DATE | Invalid date | "Line 7: `2027-02-30` is not a date" | Write a valid date, rough date or range |
 | E-DUP-ID | The same `^id` twice in a file | "`^audit` is defined twice" | Rename one of them |
 | E-REF-LOCAL | Dangling local reference | "Line 9: no item `^dyno-testing` in this file" | Correct the id, or add `^id` to the target item |
-| E-REF-PUBLIC | Deliverable targets an item that is not a public milestone | "`battery-pack.md#validated` is not in its interface" | Ask the owner to expose a milestone (remove `#private`, or add a milestone that is `after:` the item) |
-| E-REF-MISSING | Linked local file cannot be read | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
+| E-REF-PUBLIC | Deliverable targets an item that is not a public milestone (and the files have different owners) | "`battery-pack.md#validated` is not in its interface (exposed: ^a 2027-01-01, ...)" | The target must be a dated milestone not marked #private: ask its owner to add one, or depend on the whole project |
+| E-REF-MISSING | Linked local file cannot be read; a missing `#id` lists the target's exposed milestones (at most 8) | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
 | E-CYCLE | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
 | E-CONFLICT | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
+| W-OVERDUE | Contract `overdue` (§9): `by:` passed, target not delivered | "`Powertrain` is overdue: needed by 2028-02-28, not delivered" | Ask the child's owner for the delivery (if delivered, the owner ticks the milestone or sets `Done:`), or move the `by:` if the need changed |
 | W-DISPUTED | Contract `disputed` (§9): promise later than `by:`, or target withdrawn | "`Powertrain` promises 2028-03-31, after `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child moves its Commitment |
 | W-UNKNOWN | Link not readable here, on a line with `by:` | "`Powertrain` could not be read; shown as unknown" | Check the link and its access |
 | I-REQUESTED | Contract `requested`: `by:` set, no promise yet (info) | "`Powertrain` has not answered `by: 2028-02-28`" | Wait, or ask the child's owner |
-| W-KEYLIKE | Known key with a bad value, left in the title | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | Write a valid value, or reword |
+| W-KEYLIKE | Known key with a bad value, left in the title; or a list item with a known key, or a leading date plus `^id`, key or duration, but no `- [ ]` | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | Write a valid value, or reword |
 | W-NO-OWNER | Missing `Owner` | "`Owner` is not set" | Add `- Owner: Name <email>` under the title |
 
 ## 12 Informal grammar
 
 ```ebnf
-item       = indent , "- " , [ checkbox , " " ] , [ date_expr , " " ] , title , suffix , EOL ;
+item       = indent , "- " , checkbox , " " , [ date_expr , " " ] , title , suffix , EOL ;
 prop       = indent , "- " , known_key , ":" , " " , value , EOL ;
 checkbox   = "[ ]" | "[x]" | "[X]" | "[-]" ;
 title      = char , { char } ;                 (* non-empty, verbatim: the text before the suffix *)
@@ -351,7 +360,7 @@ stays plain markdown for both; these conventions make machine edits small, safe 
   information as JSON. Tool output may be JSON; project files are always markdown.
 - **An entry point for agents.** A folder of plans may hold an `AGENTS.md` that points to the
   cheat sheet and states local rules. Agents read it first.
-- **Write `done:` when ticking** `[ ]` to `[x]`, with the real completion date.
+- **Write `done:` when ticking** `[ ]` to `[x]`, with the real completion date; if unknown, leave it out. Never invent a date.
 - **Edit only what you own.** To ask another project for a date, write `by:` on your own link
   to it; never change its Commitment or milestones. Never write forecasts.
 - **Reasons travel with changes.** When a change moves a Commitment, a `by:` or a milestone,

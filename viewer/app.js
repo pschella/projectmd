@@ -1,6 +1,8 @@
 // projectmd Gantt viewer: view-only. See README.md.
-import { loadPmd, parseProject } from './pmd.js';
-import { renderMarkdown } from './md.js';
+// Cache-busting: bump v in index.html (the only place) and every module/wasm fetch follows.
+const V = new URL(import.meta.url).search;
+const { loadPmd, parseProject } = await import('./pmd.js' + V);
+const { renderMarkdown } = await import('./md.js' + V);
 
 const RH = 28;            // row height (px), must match --rh
 const HH = 22;            // header tier height
@@ -27,7 +29,9 @@ const ymd = (day) => { const d = new Date(day * DAY); return [d.getUTCFullYear()
 const p2 = (n) => String(n).padStart(2, '0');
 const fmt = (day) => { if (day == null) return ''; const [y, m, d] = ymd(Math.floor(day)); return `${y}-${p2(m)}-${p2(d)}`; };
 const now = new Date();
-const TODAY_ISO = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+// `?today=YYYY-MM-DD` views the plan as of another date (same as the CLI's --today / PMD_TODAY).
+const TODAY_Q = new URLSearchParams(location.search).get('today');
+const TODAY_ISO = /^\d{4}-\d{2}-\d{2}$/.test(TODAY_Q || '') ? TODAY_Q : `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
 const TODAY = toDay(TODAY_ISO);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const dateText = (x) => (x == null ? null : typeof x === 'string' ? x : x.text || null);
@@ -56,6 +60,7 @@ function urlParam(k) { return encodeURIComponent(k).replace(/%2F/g, '/').replace
 // ---------- state ----------
 const S = {
   rootKey: null, crumbs: [],
+  src: new Map(),                // key -> source text (sent so the parser can compute contract states)
   peek: new Map(),               // key -> parsed direct link read live (null: unreadable)
   linkItem: new Map(),      // target key -> first sub-project item linking it
   idItem: new Map(),        // 'file#id' -> item
@@ -81,7 +86,7 @@ async function fetchText(key) {
 async function peekLink(key) {
   if (S.peek.has(key) || S.projects.has(key)) return;
   S.peek.set(key, null);
-  try { const p = parseProject({ path: key, src: await fetchText(key), today: TODAY_ISO, interfaces: {} }); if (!p.error) S.peek.set(key, p); } catch (e) { /* unknown */ }
+  try { const src = await fetchText(key); const p = parseProject({ path: key, src, today: TODAY_ISO, interfaces: {} }); if (!p.error) { S.peek.set(key, p); S.src.set(key, src); } } catch (e) { /* unknown */ }
 }
 const linkTargets = (proj) => { const out = new Set(); (function w(ns) { for (const n of ns) { if (n.link_resolved && (n.kind === 'subproject' || n.kind === 'deliverable')) out.add(keyOf(urlOf(n.link_resolved.split('#')[0]))); w(n.children || []); } })(proj.nodes || []); return out; };
 const known = (key) => { const en = S.projects.get(key); return en && en.status === 'ok' ? en.proj : S.peek.get(key) || null; };
@@ -97,6 +102,7 @@ function buildInterfaces() {
     const i = { milestones: {} };
     if (p.commitment && p.commitment.text) i.commitment = p.commitment.text;
     (function w(ns) { for (const n of ns) { if (n.id && inIface(n) && n.checkbox !== 'cancelled' && n.date && n.date.text) i.milestones[n.id] = n.date.text; w(n.children || []); } })(p.nodes || []);
+    if (S.src.has(k)) i.src = S.src.get(k);
     out[k] = i;
   }
   return out;
@@ -124,7 +130,7 @@ function loadProject(key) {
   S.projects.set(key, en);
   en.promise = (async () => {
     try {
-      const src = await fetchText(key);
+      const src = await fetchText(key); S.src.set(key, src);
       const req = { path: key, src, today: TODAY_ISO, interfaces: buildInterfaces() };
       let proj = parseProject(req);
       if (proj.error) throw new Error(proj.error);
@@ -344,10 +350,11 @@ function ownerText(row) {
 // A deliverable is labelled "project › milestone": the target's title when loaded, else its file name.
 function delivLabel(it) {
   const n = it.node, t = n.link_resolved ? keyOf(urlOf(n.link_resolved.split('#')[0])) : null;
-  const en = t && S.projects.get(t);
-  const proj = en && en.status === 'ok' && en.proj.title ? en.proj.title : t ? baseName(t).replace(/\.md$/i, '') : '';
+  const kp = t && known(t);
+  const proj = kp && kp.title ? kp.title : t ? baseName(t).replace(/\.md$/i, '') : '';
   return proj ? `${proj} › ${n.link ? n.link.text : n.title}` : n.title;
 }
+const contractOf = (it) => (it.node && (it.kind === 'subproject' || it.kind === 'deliverable') && it.entry.proj.contracts && it.entry.proj.contracts[it.node.line]) || '';
 function titleOf(it) {
   if (it.kind === 'project') return it.entry.proj.title;
   const n = it.node;
@@ -385,6 +392,15 @@ function declText(n) {
   if (n.date) d.push(n.date.text); if (n.suffix_date) d.push(n.suffix_date.text); if (n.range) d.push(n.range.text); if (n.duration) d.push(n.duration.text);
   return d.join('  ');
 }
+// Done later than declared: {d: declared day, e: done day, n: days late} (declared = own date, else by:).
+function lateOf(row) {
+  const n = row.it.node;
+  if (!n || n.checkbox !== 'done' || !n.keys) return null;
+  const dn = n.keys.done && n.keys.done[0], dc = (n.date && exprSpan(n.date)) || (n.keys.by && n.keys.by[0] && { e: toDay(n.keys.by[0].end || n.keys.by[0].text) });
+  const e = dn && toDay(dn.end || dn.text);
+  if (e == null || !dc || dc.e == null || dc.e >= e) return null;
+  return { d: dc.e, e, n: e - dc.e };
+}
 function tipText(row) {
   const it = row.it, n = it.node;
   const lines = [titleOf(it)];
@@ -392,6 +408,7 @@ function tipText(row) {
   lines.push(`${row.vk === 'ms' ? 'milestone' : n ? n.kind : 'project'}${st ? ' · ' + st : ''}`);
   if (row.s != null) lines.push(row.vk === 'ms' ? fmt(row.e) : `${fmt(row.s)} → ${fmt(row.e)} (${durText(row)})${row.fc ? ' forecast' : ''}`);
   if (n && row.decl) lines.push(`Declared ${declText(n)}`);
+  const lt = lateOf(row); if (lt) lines.push(`! done ${lt.n}d late (declared ${fmt(lt.d)})`);
   if (row.vk === 'sub') lines.push(row.commit ? `Commitment ${row.commit.text} (live)` : 'No interface known');
   if (row.vk === 'unk') lines.push('Could not load');
   for (const r of reasonsOf(row)) lines.push('! ' + r);
@@ -455,11 +472,13 @@ function render() {
     else if (it.kind === 'subproject') ico = `<span class="st sub ${row.sub && row.sub.status === 'ok' ? 'loaded ' : ''}${stCls(it)}" title="${row.sub && row.sub.status === 'ok' ? 'Loaded sub-project' : 'Not expanded: promise read live'}"></span>`;
     else if (it.kind === 'task') ico = `<span class="st ${stCls(it)}"></span>`;
     const why = reasonsOf(row);
+    const ct = contractOf(it);
+    const pill = ct ? `<span class="ct ct-${ct}" title="Contract: ${ct}">${ct}</span>` : '';
     const flag = why.length ? `<span class="flag" title="${esc(why.join('\n'))}">!</span>` : '';
     const num = S.wbs && row.num ? `<span class="num">${row.num}</span>` : '';
     const focus = it.kind === 'subproject' && it.target ? '<button class="focus" data-act="focus" title="Open as top level (Ctrl/Cmd-click or double-click)">Open</button>' : '';
     const aria = `role="row" aria-level="${row.depth + 1}" aria-selected="${!!sel}"${isExpandable(row) ? ` aria-expanded="${isOpen(row)}"` : ''}`;
-    L += `<div class="lrow ${cls}" ${aria} data-i="${i}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 6}px">${tog}${ico}<span class="t" title="${esc(titleOf(it))}">${num}${esc(titleOf(it))}</span>${flag}${focus}</div>` +
+    L += `<div class="lrow ${cls}" ${aria} data-i="${i}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 6}px">${tog}${ico}<span class="t" title="${esc(titleOf(it))}">${num}${esc(titleOf(it))}</span>${pill}${flag}${focus}</div>` +
       `<div class="d">${esc(fmt(row.s))}</div><div class="d fin">${esc(fmt(row.e))}</div><div>${durText(row)}</div><div title="${esc(ownerText(row))}">${esc(ownerText(row))}</div></div>`;
     T += `<div class="trow${sel}${odd}${hov}" data-i="${i}" style="top:${i * RH}px">${bars(row)}</div>`;
   }
@@ -494,6 +513,11 @@ function bars(row) {
     case 'unk':
       out = `<div class="unk" style="left:${x1}px;width:${w}px"${tip}></div>`;
       break;
+  }
+  const lt = lateOf(row);
+  if (lt) {
+    const a = dx(lt.d + 0.5), b = dx(lt.e + 0.5), tp = ` data-tip="Declared ${esc(fmt(lt.d))}\n! done ${lt.n}d late"`;
+    out += `<div class="lateln" style="left:${a}px;width:${b - a}px"${tp}></div><div class="late" style="left:${a}px"${tp}></div>`;
   }
   if (row.conflict && f.declared_end) { const dd = toDay(f.declared_end); if (dd != null) out += `<div class="decl" style="left:${dx(dd + 1)}px" data-tip="Declared end ${esc(f.declared_end)}"></div>`; }
   if (row.mism && row.by != null) out += `<div class="decl w" style="left:${dx(row.by + 1)}px" data-tip="Parent by: ${fmt(row.by)}"></div>`;
@@ -591,6 +615,7 @@ function showDetail(row) {
       (f.conflict ? '<span class="badge red">conflict</span>' : '') + (row.mism ? '<span class="badge warn">exceeds by:</span>' : '');
     line = n.line;
     add('Declared', esc(declText(n)));
+    { const lt = lateOf(row); if (lt) add('Late', `<span class="r">done ${lt.n}d late (declared ${esc(fmt(lt.d))})</span>`); }
     add('Forecast start', esc(f.start || (row.s != null && !row.fc ? fmt(row.s) + ' (shown)' : '')));
     add('Forecast end', esc(f.end || (row.e != null && !row.fc ? fmt(row.e) + ' (shown)' : '')));
     if (f.declared_end) add('Declared end', esc(f.declared_end));
@@ -603,6 +628,7 @@ function showDetail(row) {
       return t ? `<a href="#" data-sel="${esc(t.id)}" title="Select ${esc(titleOf(t))}">${label}</a>` : `<span title="Not loaded">${label}</span>`;
     }).join(', '));
     add('By', vals(k.by));
+    add('Contract', contractOf(it) ? `<span class="ct ct-${contractOf(it)}">${contractOf(it)}</span>` : '');
     add('Tags', esc((n.tags || []).map((t) => '#' + t).join(' ')));
     add('Owner', vals(k.owner) || esc(ownerText(row)));
     const inKeys = ['after', 'by', 'owner'];
@@ -711,10 +737,10 @@ async function navigate(key, crumbs, push) {
   const token = ++S.navToken;
   S.rootKey = key; S.crumbs = crumbs;
   S.collapsed = new Set(); S.expanded = new Set(); S.selId = null;
-  S.projects = new Map(); S.peek = new Map(); S.linkItem = new Map(); S.idItem = new Map(); S.rowById = new Map();
+  S.projects = new Map(); S.peek = new Map(); S.src = new Map(); S.linkItem = new Map(); S.idItem = new Map(); S.rowById = new Map();
   S.rawMin = null; S.rangeSet = false; S.needFit = true;
   hideDetail();
-  if (push) history.pushState({ crumbs }, '', '?root=' + urlParam(key));
+  if (push) history.pushState({ crumbs }, '', '?root=' + urlParam(key) + (TODAY_Q ? '&today=' + encodeURIComponent(TODAY_ISO) : ''));
   banner('');
   S.rows = []; updateToolbar(); render();
   const en = await loadProject(key);
@@ -726,7 +752,7 @@ async function navigate(key, crumbs, push) {
 
 function rootFromLocation() {
   const q = new URLSearchParams(location.search).get('root');
-  return q ? keyOf(new URL(q, location.origin + '/').href) : '/examples/car/aurora.md';
+  return q ? keyOf(new URL(q, location.origin + '/').href) : '/examples/lunar/hq/lunar-programme.md';
 }
 
 // ---------- events ----------
@@ -895,7 +921,7 @@ window.addEventListener('popstate', (e) => navigate(rootFromLocation(), (e.state
 
 // ---------- boot ----------
 (async function boot() {
-  try { await loadPmd(); }
+  try { await loadPmd(new URL('./pmd.wasm' + V, import.meta.url)); }
   catch (e) { banner('Could not load pmd.wasm (' + e.message + '). Build it with parser/build-wasm.sh and serve the repo root, e.g. python3 -m http.server 8642.'); return; }
   history.replaceState({ crumbs: (history.state && history.state.crumbs) || [] }, '');
   navigate(rootFromLocation(), (history.state && history.state.crumbs) || [], false);

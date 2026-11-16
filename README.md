@@ -53,7 +53,7 @@ The format is the product. The tools here are a first reference implementation: 
 validator in Rust (also built to WebAssembly) and a web viewer that draws a project graph as an
 expandable Gantt chart. Anyone can write others: the files are plain markdown and the grammar is specified.
 
-![The viewer showing the example car programme as a nested Gantt chart](docs/img/gantt.png)
+![The viewer showing an example programme as a nested Gantt chart](docs/img/gantt.png)
 
 > Status: **early draft.** The format may still change.
 
@@ -67,7 +67,7 @@ expandable Gantt chart. Anyone can write others: the files are plain markdown an
 | [docs/DESIGN.md](docs/DESIGN.md) | Why it is designed this way: requirements, concepts, checks. |
 | [docs/VIEWER-CONTRACT.md](docs/VIEWER-CONTRACT.md) | How the reference viewer calls the parser (WebAssembly interface). |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Parser scaling measurements. |
-| [examples/](examples/README.md) | Worked examples: a fictional electric car (10 project files, five levels deep) and a company split across three stores (`examples/org/`). |
+| [examples/](examples/README.md) | Worked examples: a fictionalised crewed-lunar-landing programme in seven stores (`examples/lunar/`) and a company split across three stores (`examples/org/`). |
 
 ## Quick start
 
@@ -77,7 +77,7 @@ expandable Gantt chart. Anyone can write others: the files are plain markdown an
 python3 -m http.server 8642
 ```
 
-Open http://localhost:8642/viewer/?root=/examples/car/aurora.md. Click the chevron to expand a
+Open http://localhost:8642/viewer/?root=/examples/lunar/hq/lunar-programme.md&today=1967-11-15. Click the chevron to expand a
 sub-project (loaded on demand) and select a row to see its details. Ctrl/Cmd-click or double-click
 a sub-project to make it the top level.
 
@@ -85,10 +85,10 @@ a sub-project to make it the top level.
 
 ```bash
 cd parser && cargo build --release
-./target/release/pmd check ../examples/car/aurora.md          # validate; --deep walks all linked files, --strict fails on warnings
-./target/release/pmd schedule ../examples/car/aurora.md       # forecast dates and conflicts
-./target/release/pmd tree ../examples/car/aurora.md --depth 2 # outline with contract states
-./target/release/pmd fmt ../examples/car/aurora.md --check    # canonical form? (without --check, rewrites the file)
+./target/release/pmd check ../examples/lunar/hq/lunar-programme.md          # validate; --deep walks all linked files, --strict fails on warnings
+./target/release/pmd schedule ../examples/lunar/hq/lunar-programme.md       # forecast dates and conflicts
+./target/release/pmd tree ../examples/lunar/hq/lunar-programme.md --depth 2 # outline with contract states
+./target/release/pmd fmt ../examples/lunar/hq/lunar-programme.md --check    # canonical form? (without --check, rewrites the file)
 ```
 
 Rebuild the viewer's WebAssembly module with `parser/build-wasm.sh`.

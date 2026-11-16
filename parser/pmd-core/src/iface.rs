@@ -37,7 +37,7 @@ pub fn is_referable(n: &Node) -> bool {
 /// The interface milestones of a project in file order.
 pub fn interface_items(p: &Project) -> Vec<IfaceItem> {
     let mut out = Vec::new();
-    p.walk(|n| {
+    p.walk_live(|n| {
         if !in_interface(n) {
             return;
         }

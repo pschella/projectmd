@@ -113,6 +113,7 @@ fn parse_request(req: &str) -> String {
         _ => return err("request needs `today` as YYYY-MM-DD"),
     };
     let mut ifs = Interfaces::new();
+    let mut kids: std::collections::HashMap<String, Project> = std::collections::HashMap::new();
     if let Some(m) = r.get("interfaces").and_then(J::as_object) {
         for (k, v) in m {
             let ms = v.get("milestones").and_then(J::as_object);
@@ -120,14 +121,23 @@ fn parse_request(req: &str) -> String {
                 v.get("commitment").and_then(J::as_str),
                 ms.into_iter().flatten().filter_map(|(id, d)| d.as_str().map(|d| (id.as_str(), d))),
             );
+            if let Some(src) = v.get("src").and_then(J::as_str) {
+                kids.insert(normalize(k), parse(k, src));
+            }
             ifs.insert(k.clone(), i.clone());
             ifs.insert(normalize(k), i);
         }
     }
     let mut p = parse(path, src);
     schedule(&mut p, today, &ifs);
-    match serde_json::to_string(&p) {
-        Ok(s) => s,
+    // Live one-hop contract states, by line, for links with `by:` whose child `src` was supplied.
+    let lookup = |t: &str| -> Option<Child<'_>> { kids.get(t).map(Child::Read) };
+    let contracts: serde_json::Map<String, J> = contracts_of(&p, today, &lookup).into_iter().map(|c| (c.line.to_string(), json!(c.state.as_str()))).collect();
+    match serde_json::to_value(&p) {
+        Ok(mut v) => {
+            v["contracts"] = J::Object(contracts);
+            v.to_string()
+        }
         Err(e) => err(e),
     }
 }

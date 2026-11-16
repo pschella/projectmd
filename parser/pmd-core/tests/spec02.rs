@@ -31,11 +31,45 @@ fn milestones_are_public_unless_private() {
 #[test]
 fn only_milestones_are_referable() {
     let g = graph_of(&[
-        ("r.md", "# R\n\n- Owner: @a\n\n- [ ] [a](s.md#m)\n- [ ] [b](s.md#p)\n- [ ] [c](s.md#t)\n"),
+        ("r.md", "# R\n\n- Owner: @b\n\n- [ ] [a](s.md#m)\n- [ ] [b](s.md#p)\n- [ ] [c](s.md#t)\n"),
         ("s.md", "# S\n\n- Owner: @a\n\n- [ ] 2027-01-01 M  ^m\n- [ ] 2027-01-01 P  #private  ^p\n- [ ] T  2w  ^t\n"),
     ]);
     let bad: Vec<u32> = g.check().iter().filter(|d| d.code == "E-REF-PUBLIC").map(|d| d.line).collect();
     assert_eq!(bad, [6, 7], "private milestone and plain task are not in the interface");
+}
+
+#[test]
+fn same_owner_may_reference_any_item() {
+    let g = graph_of(&[
+        ("r.md", "# R\n\n- Owner: @a\n\n- [ ] [a](s.md#m)\n- [ ] [b](s.md#p)\n- [ ] [c](s.md#t)\n"),
+        ("s.md", "# S\n\n- Owner: @a \n\n- [ ] 2027-01-01 M  ^m\n- [ ] 2027-01-01 P  #private  ^p\n- [ ] T  2w  ^t\n"),
+    ]);
+    assert!(g.check().iter().all(|d| d.code != "E-REF-PUBLIC"), "{:?}", g.check());
+}
+
+#[test]
+fn same_owner_deliverable_ends_at_forecast_end() {
+    let mut ifs = Interfaces::new();
+    let a = parse("a.md", "# A\n\n- Owner: @x\n\n- [ ] [T](b.md#t)  ^d\n");
+    let b = parse("b.md", "# B\n\n- Owner: @x\n\n- [ ] T  2w  ^t\n");
+    let o = parse("o.md", "# O\n\n- Owner: @y\n\n- [ ] [T](b.md#t)  ^d\n");
+    ifs.insert("b.md".into(), Interface::from_project(&b));
+    add_forecasts(&mut ifs, &[("b.md".into(), &b)], Civil::new(2027, 1, 4));
+    let (mut a, mut o) = (a, o);
+    schedule(&mut a, Civil::new(2027, 1, 4), &ifs);
+    schedule(&mut o, Civil::new(2027, 1, 4), &ifs);
+    let e = a.find_id("d").unwrap().forecast.unwrap().end.unwrap().to_string();
+    assert_eq!(e, "2027-01-17");
+    assert_ne!(o.find_id("d").unwrap().forecast.and_then(|f| f.end).map(|d| d.to_string()), Some(e));
+}
+
+#[test]
+fn done_accepts_any_date_expression() {
+    let p = parse("t.md", "# T\n\n- [x] A  done: 1966-11  ^a\n- [x] B  done: 1966-11-11 .. 1966-11-15  ^b\n- [x] C  done: 2027-Q1  ^c\n");
+    let d = |i: &str| p.find_id(i).unwrap().done_date().map(|d| d.to_string());
+    assert_eq!(d("a").as_deref(), Some("1966-11-30"));
+    assert_eq!(d("b").as_deref(), Some("1966-11-15"));
+    assert_eq!(d("c").as_deref(), Some("2027-03-31"));
 }
 
 // ---- headings carry no dates (D47) ------------------------------------------------------------

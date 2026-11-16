@@ -102,7 +102,7 @@ private: to expose one piece of it, add a milestone that is `after:` it. The rul
 A project file is a markdown file: an H1 title, a header of `Key: value` list items, then list
 items for the work and milestones. Shape decides meaning; headings only group. The item syntax,
 suffix rules and node kinds are defined in [FORMAT §1-§5](FORMAT.md) and [GRAMMAR.md](GRAMMAR.md).
-Real files: [examples/car/aurora.md](../examples/car/aurora.md) (the programme) and
+Real files: [examples/lunar/hq/lunar-programme.md](../examples/lunar/hq/lunar-programme.md) (the programme) and
 [examples/org/teams/enclosures/](../examples/org/teams/enclosures/) (a team's front and private plan).
 
 When a plan must stay private, its owner keeps a second, ordinary project file, a **front**, which
@@ -263,6 +263,13 @@ tests (input files to expected JSON) and a JSON schema for parser output.
 5. **Working time vs calendar time in durations.** Durations are calendar time today (`1w` = 7
    days). Should a duration be able to mean working time, and if so how, without calendars in the
    format?
+6. **Semantics changes after release.** Changing what the format means (for example a new contract
+   state) after a release needs a format version and a `pmd fmt` migration.
+
+7. **Recurring needs.** A need that repeats (one vehicle per flight) costs a few lines per instance;
+   a sub-project per instance is the structural answer today. Is a series form ever worth it?
+8. **The "why" without version history.** Reasons for a moved promise go in commit messages, which
+   assume a VCS. Stores without history need a short dated note next to the changed line.
 
 ## 11 Status
 

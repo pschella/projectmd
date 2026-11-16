@@ -60,7 +60,7 @@ fn the_new_line_has_no_status_without_by_and_requested_with_one() {
         let pr = parse("interior.md", &format!("{}{}", HEAD, parent));
         let ch = parse("seats.md", child);
         let lookup = |t: &str| if t == "seats.md" { Some(Child::Read(&ch)) } else { None };
-        contracts_of(&pr, &lookup).into_iter().map(|c| c.state).collect::<Vec<_>>()
+        contracts_of(&pr, Civil::new(2020,1,1), &lookup).into_iter().map(|c| c.state).collect::<Vec<_>>()
     };
     // promoted line with `by:`: requested until the child promises, then agreed
     assert_eq!(st(AFTER, CHILD_NO_COMMITMENT), [State::Requested]);

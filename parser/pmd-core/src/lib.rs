@@ -16,4 +16,4 @@ pub use iface::{in_interface, interface_items, is_empty_promise, is_private, Ifa
 pub use contract::{contract_diags, contracts_of, deliverable_state, project_state, Child, Contract, State};
 pub use model::*;
 pub use parse::parse;
-pub use schedule::{schedule, span_of_text, Interface, Interfaces};
+pub use schedule::{add_forecasts, schedule, span_of_text, Interface, Interfaces};

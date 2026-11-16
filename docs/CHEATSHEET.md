@@ -16,27 +16,29 @@ else is free text.
 - [ ] [Inverter A-samples][inv-a]  ^inv-a
 - [ ] Thermal validation  8w  after: ^design-freeze  after: ^inv-a
 - [ ] [Cooling loop](cooling/cooling.md)  by: 2027-03-31
+- [ ] [Pack A-samples](pack.md#a-samples)  by: 2027-03-31  ^a-samples
 - [ ] [Pack B-samples](pack.md#b-samples)  by: 2027-09-30  ^b-samples
-- Supplier prefers Q2 delivery.        <- prose: no checkbox, no date, ignored
+- Supplier prefers Q2 delivery.        <- prose: no checkbox, ignored (so is `- 2027-06-30 note`)
 
 [inv-a]: https://supplier-portal.example.net/projects/inv-2207.md#a-samples
 ```
 
 | Token | Meaning |
 |---|---|
-| `- [ ]` `[x]` `[-]` | open · done · will not happen (cancelled, rejected, withdrawn); a gate is a milestone its owner decides |
-| `done: 2027-05-28` | completion date; write it when ticking `[x]` |
-| leading `2027-06-30` | milestone; its date is the declared end |
+| `- [ ]` `[x]` `[-]` | open · done · will not happen (cancels its sub-items too); a gate is a milestone its owner decides |
+| `done: 2027-05-28` | completion date (a month, quarter or range also works; its end counts), written when ticking `[x]`; without it `[x]` = finished, date unknown: no constraint on successors (never invent one) |
+| `- [ ] 2027-06-30 …` | leading date: milestone; its date is the declared end (with `26w`: work with that deadline); `Commitment: ^id` (or `DATE .. ^id`) makes it the project's promise |
 | `#private` | keeps a milestone out of its parents' view (milestones are exposed by default) |
 | `2027-Q3` `2027-06` | coarse date; deadlines use the end of the span |
 | `a .. b` | range: declared start a, declared end b |
 | `12w` `3d` `2m` | estimate in real calendar time (1w = 7 days, 1m = 1 calendar month) |
 | `^id` | defines an id for local references |
-| `owner: Name` | who does it (`Name <email>` or any text) |
-| `after: ^id` | starts the day after that local item ends; repeatable; a date also works |
+| `owner: Name` | who does it; any text up to the next token (`Henrik Osei`, `Name <email>`, `@h`) |
+| `after: ^id` | starts the day after that local item ends; repeatable; `after: DATE` = earliest start, inclusive (also records an actual start) |
 | `by: date` / `by: ^id` | the declared end; on a link line, the need-by asked of the child |
 | `[Title](path.md)` | sub-project (a link line); the child's Commitment is its promise |
-| `[Title](path.md#id)` | deliverable: a milestone of another project; `by:` is the contract |
+| `[Title](path.md#id)` | deliverable: a *dated, non-`#private` milestone* of another project; `by:` is the contract (same `Owner:` in both files: any `^id` item, its end is its forecast end); one line per need (two needs from one child = two lines, two `by:`) |
+| `2027-09-30 [Title](path.md#id)` | dated deliverable: a milestone whose date is your promise; id defaults to the fragment |
 | `` `code` `` | never parsed as a token |
 
 Rules:
@@ -44,13 +46,15 @@ Rules:
 2. Sub-bullets `key: value` under an item set its keys. The H1 sub-bullets are the header
    (`Owner`, `Commitment`, `Done`).
 3. `after:` and `by:` take local `^id`s or dates only. To depend on another file, add a link
-   line with an `^id` and point at it.
+   line with an `^id` and point at it. A sibling dependency is a deliverable line to the sibling's milestone plus a local `after:` on it.
 4. To grow an item into a sub-project, replace its title with a link; nothing else changes.
 5. Write only declared dates, never a forecast. To hide a plan from parents, keep a thin front
-   file (header, milestones, deliverable lines into the plan).
+   file (header, dated deliverables into the plan). A need inside a task: split the task.
+   When work has started, tick its predecessors and add `after: DATE` for the actual start (keep the `after: ^id`).
 
 Rules for agents (FORMAT §13):
-6. Read `AGENTS.md` if the folder has one. Refer to items by `^id`.
+6. Read `AGENTS.md` if the folder has one. Refer to items by `^id`; give every promise others use an explicit `^id`.
+   Keep titles stable: history ("was …") goes in prose or the commit message, not the title.
 7. Edit only files you own. Ask for a date with `by:` on your own link line; never edit a Commitment elsewhere.
-8. Write canonical form (`pmd fmt`) and finish with `pmd check` clean (`--strict` in CI).
+8. Write canonical form (`pmd fmt`) and finish with `pmd check` clean (`--strict` in CI; `PMD_TODAY=YYYY-MM-DD` replaces `--today`).
    Say why in the commit message when a Commitment, `by:` or milestone moves.
