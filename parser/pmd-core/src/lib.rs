@@ -8,6 +8,7 @@ pub mod contract;
 pub mod iface;
 pub mod model;
 pub mod parse;
+pub mod ready;
 pub mod schedule;
 
 pub use date::{parse_date, Civil, DateParse};
@@ -16,4 +17,5 @@ pub use iface::{in_interface, interface_items, is_empty_promise, is_private, Ifa
 pub use contract::{contract_diags, contracts_of, deliverable_state, project_state, Child, Contract, State};
 pub use model::*;
 pub use parse::parse;
+pub use ready::{ready, Ready};
 pub use schedule::{add_forecasts, schedule, span_of_text, Interface, Interfaces};

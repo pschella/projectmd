@@ -68,7 +68,7 @@ fn all_diags(g: &Graph) -> Vec<Diagnostic> {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: pmd parse FILE | check FILE... [--deep] [--strict] [--today D] [--json] | schedule FILE... [--today D] [--json] | fmt FILE... [--check] | tree FILE... [--depth N] [--today D]"
+        "usage: pmd parse FILE | check FILE... [--deep] [--strict] [--today D] [--json] | schedule FILE... [--today D] [--json] | ready FILE... [--deep] [--owner NAME] [--today D] [--json] | fmt FILE... [--check] | tree FILE... [--depth N] [--today D]"
     );
     exit(2)
 }
@@ -92,10 +92,10 @@ fn main() {
     let (mut files, mut opts) = (Vec::new(), Vec::new());
     let mut it = args[1..].iter();
     while let Some(a) = it.next() {
-        if let Some((k, v)) = a.split_once('=').filter(|(k, _)| matches!(*k, "--today" | "--depth")) {
+        if let Some((k, v)) = a.split_once('=').filter(|(k, _)| matches!(*k, "--today" | "--depth" | "--owner")) {
             opts.push(k.to_string());
             opts.push(v.to_string());
-        } else if matches!(a.as_str(), "--today" | "--depth") {
+        } else if matches!(a.as_str(), "--today" | "--depth" | "--owner") {
             opts.push(a.clone());
             opts.extend(it.next().cloned());
         } else if a.starts_with("--") {
@@ -104,7 +104,7 @@ fn main() {
             files.push(a.clone());
         }
     }
-    if files.is_empty() || (files.len() > 1 && !matches!(args[0].as_str(), "check" | "schedule" | "tree" | "fmt")) {
+    if files.is_empty() || (files.len() > 1 && !matches!(args[0].as_str(), "check" | "schedule" | "tree" | "fmt" | "ready")) {
         usage();
     }
     let file = &files[0];
@@ -113,6 +113,7 @@ fn main() {
         "parse" => cmd_parse(file),
         "check" => multi(&|f| cmd_check(f, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep"), has_flag(&opts, "--strict"))),
         "schedule" => multi(&|f| cmd_schedule(f, today_arg(&opts), has_flag(&opts, "--json"))),
+        "ready" => cmd_ready(&files, today_arg(&opts), opts.iter().position(|o| o == "--owner").and_then(|i| opts.get(i + 1)).map(|s| s.as_str()), has_flag(&opts, "--json"), has_flag(&opts, "--deep")),
         "fmt" => cmd_fmt(&args[1..]),
         "tree" => {
             let mut depth = 1usize;
@@ -160,7 +161,7 @@ fn today_arg(rest: &[String]) -> Civil {
         if rest[i] == "--today" && i + 1 < rest.len() {
             t = rest[i + 1].clone();
             i += 2;
-        } else if rest[i] == "--depth" {
+        } else if matches!(rest[i].as_str(), "--depth" | "--owner") {
             i += 2;
         } else if matches!(rest[i].as_str(), "--json" | "--deep" | "--strict") {
             i += 1;
@@ -312,6 +313,49 @@ fn cmd_schedule(root: &str, today: Civil, json: bool) -> i32 {
         println!("{}:{}: {} {}", p.path, d.line, d.code, d.message);
     }
     0
+}
+
+/// `pmd ready FILE...`: open work that may start now, per file after scheduling it.
+fn cmd_ready(files: &[String], today: Civil, owner: Option<&str>, json: bool, deep: bool) -> ! {
+    let (mut all, mut seen, mut code) = (Vec::new(), HashSet::new(), 0);
+    for f in files {
+        let ld = if deep { Loader::load(f) } else { Loader::load_depth(f, 1) };
+        let g = ld.graph.as_ref().unwrap();
+        let Some(p0) = g.get(f) else {
+            eprintln!("pmd: cannot read {}", f);
+            code = 2;
+            continue;
+        };
+        let ifs = interfaces_for(g, today);
+        let todo: Vec<&Project> = if deep { std::iter::once(p0).chain(g.projects().iter().filter(|p| normalize(&p.path) != normalize(f))).collect() } else { vec![p0] };
+        for p0 in todo {
+            if !seen.insert(normalize(&p0.path)) {
+                continue;
+            }
+            let mut p = p0.clone();
+            schedule(&mut p, today, &ifs);
+            all.extend(ready(&p, today, owner, &lookup_in(g)).into_iter().map(|r| (p0.path.clone(), r)));
+        }
+    }
+    if json {
+        let v: Vec<_> = all
+            .iter()
+            .map(|(f, r)| json!({ "file": f, "line": r.line, "title": r.title, "owner": r.owner, "kind": if r.kind == NodeKind::Milestone { "milestone" } else { "task" }, "due": r.due.map(|d| d.to_string()), "declared": r.declared.map(|d| d.to_string()), "started": r.started.map(|d| d.to_string()) }))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&v).unwrap());
+    } else {
+        for (f, r) in &all {
+            let due = r.due.map(|d| format!("  due: {}", d)).unwrap_or_default();
+            let decl = r.declared.map(|d| format!("  (declared {})", d)).unwrap_or_default();
+            let st = r.started.map(|d| format!("  started: {}", d)).unwrap_or_default();
+            println!("{}:{}  {}  owner: {}{}{}{}", f, r.line, r.title, r.owner, due, decl, st);
+        }
+        if !all.is_empty() {
+            println!();
+        }
+        println!("{} ready ({} files read)", all.len(), seen.len());
+    }
+    exit(code)
 }
 
 /// `pmd fmt FILE... [--check]`: rewrite each FILE in canonical form (FORMAT §13); prints the

@@ -88,6 +88,7 @@ cd parser && cargo build --release
 ./target/release/pmd check ../examples/lunar/hq/lunar-programme.md          # validate; --deep walks all linked files, --strict fails on warnings
 ./target/release/pmd schedule ../examples/lunar/hq/lunar-programme.md       # forecast dates and conflicts
 ./target/release/pmd tree ../examples/lunar/hq/lunar-programme.md --depth 2 # outline with contract states
+./target/release/pmd ready ../examples/lunar/hq/lunar-programme.md --deep   # open work that may start now
 ./target/release/pmd fmt ../examples/lunar/hq/lunar-programme.md --check    # canonical form? (without --check, rewrites the file)
 ```
 

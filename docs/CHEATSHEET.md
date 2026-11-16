@@ -33,7 +33,7 @@ else is free text.
 | `a .. b` | range: declared start a, declared end b |
 | `12w` `3d` `2m` | estimate in real calendar time (1w = 7 days, 1m = 1 calendar month) |
 | `^id` | defines an id for local references |
-| `owner: Name` | who does it; any text up to the next token (`Henrik Osei`, `Name <email>`, `@h`) |
+| `owner: Name` | who does it (may differ from the file's Owner: a decision you need from Mara is `- [ ] Decide X  owner: Mara` in your file; undated, it is due today, so what waits on it slips daily); any text up to the next token (`Henrik Osei`, `Name <email>`, `@h`) |
 | `after: ^id` | starts the day after that local item ends; repeatable; `after: DATE` = earliest start, inclusive (also records an actual start) |
 | `by: date` / `by: ^id` | the declared end; on a link line, the need-by asked of the child |
 | `[Title](path.md)` | sub-project (a link line); the child's Commitment is its promise |
@@ -46,7 +46,7 @@ Rules:
 2. Sub-bullets `key: value` under an item set its keys. The H1 sub-bullets are the header
    (`Owner`, `Commitment`, `Done`).
 3. `after:` and `by:` take local `^id`s or dates only. To depend on another file, add a link
-   line with an `^id` and point at it. A sibling dependency is a deliverable line to the sibling's milestone plus a local `after:` on it.
+   line with an `^id` and point at it. A dependency on a sibling or parent milestone (e.g. the parent's release candidate) is a deliverable line to that milestone plus a local `after:` on it. To wait for another project's milestone, link it and put `after:` on that line, not its date.
 4. To grow an item into a sub-project, replace its title with a link; nothing else changes.
 5. Write only declared dates, never a forecast. To hide a plan from parents, keep a thin front
    file (header, dated deliverables into the plan). A need inside a task: split the task.
@@ -56,5 +56,7 @@ Rules for agents (FORMAT §13):
 6. Read `AGENTS.md` if the folder has one. Refer to items by `^id`; give every promise others use an explicit `^id`.
    Keep titles stable: history ("was …") goes in prose or the commit message, not the title.
 7. Edit only files you own. Ask for a date with `by:` on your own link line; never edit a Commitment elsewhere.
-8. Write canonical form (`pmd fmt`) and finish with `pmd check` clean (`--strict` in CI; `PMD_TODAY=YYYY-MM-DD` replaces `--today`).
+8. Write canonical form (`pmd fmt`) and finish with `pmd check` clean (silent and exit 0 when clean; `--strict` in CI; `PMD_TODAY=YYYY-MM-DD` replaces `--today`).
    Say why in the commit message when a Commitment, `by:` or milestone moves.
+9. Find work with `pmd ready FILE... [--owner NAME]` (open items whose predecessors are done). When you
+   start one, record `after: <today>` in the same edit; its `owner:` says whose it is.

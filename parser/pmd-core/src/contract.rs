@@ -135,7 +135,8 @@ pub fn contract_diags<'a>(proj: &Project, today: Civil, lookup: &dyn Fn(&str) ->
                 State::Overdue => (Severity::W, "W-OVERDUE", format!("`{}` is overdue: needed by {}, not delivered", t, c.by_text)),
                 State::Disputed => match c.promise {
                     Some(d) => (Severity::W, "W-DISPUTED", format!("`{}` promises {}, after `by: {}`", t, d, c.by_text)),
-                    None => (Severity::W, "W-DISPUTED", format!("`{}` was withdrawn or is not offered; `by: {}`", t, c.by_text)),
+                    // no promise: the target id is missing or not public, already E-REF-MISSING / E-REF-PUBLIC
+                    None => return None,
                 },
                 State::Requested => (Severity::I, "I-REQUESTED", format!("`{}` has not answered `by: {}`", t, c.by_text)),
                 State::Unknown => (Severity::W, "W-UNKNOWN", format!("`{}` could not be read; shown as unknown", t)),

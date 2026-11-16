@@ -48,7 +48,8 @@ fn months_are_calendar() {
 fn after_chain_and_unfinished_task_without_info() {
     let p = run("# T\n\n- [ ] 2027-03-01 M  ^m\n- [ ] T  10d  after: ^m\n- [ ] Nothing\n", "2027-01-01", &[]);
     assert_eq!(fc(&p, "T"), ("2027-03-02".into(), "2027-03-11".into(), false));
-    assert_eq!(fc(&p, "Nothing"), ("null".into(), "null".into(), false));
+    // an open item with nothing to date it is due today (its successors wait for it)
+    assert_eq!(fc(&p, "Nothing"), ("2027-01-01".into(), "2027-01-01".into(), false));
 }
 
 #[test]

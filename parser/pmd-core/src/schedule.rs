@@ -283,6 +283,12 @@ impl<'a> Ctx<'a> {
         }
         let child_done = node.kind == NodeKind::Subproject && info.iface.as_ref().is_some_and(|f| f.done.is_some());
         let unfinished_ = unfinished(node) && !self.finished && !child_done && info.deliv_done.is_none();
+        if unfinished_ && end.is_none() && matches!(node.kind, NodeKind::Task | NodeKind::Milestone) && !node.is_link_node() {
+            // an open item with nothing to date it (e.g. a decision someone owes) is due now:
+            // it ends today at the earliest, so its successors wait for it
+            start = Some(today);
+            end = start;
+        }
         if unfinished_ {
             end = end.map(|e| e.max(today));
         }

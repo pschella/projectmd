@@ -1304,7 +1304,7 @@ impl<'a> P<'a> {
                     } else if parse_date(w) != DateParse::NotDate {
                         Some(self.date_expr(w, *ln))
                     } else {
-                        self.diag(Severity::E, "E-DATE", *ln, format!("commitment is not a date expression: {}", w));
+                        self.diag(Severity::E, "E-DATE", *ln, format!("commitment is not a date expression: {} (write `START .. END`, `^id`, or `START .. ^id`; the id names a dated milestone)", w));
                         None
                     };
                     proj.commitment = ex.flatten();

@@ -151,7 +151,7 @@ Bottom-up, an existing team plan is linked into a new parent. Both meet in the s
 ## 7 How it computes
 
 Forecasts are computed from the same files by every tool, so tools agree; they are never written
-down ([FORMAT §7.1](FORMAT.md#71-forecast-algorithm)).
+down ([FORMAT §7.1](FORMAT.md#71-forecast-algorithm)). A decision someone owes delays what waits on it a day per day.
 
 The **locality rule** ([FORMAT §7.3](FORMAT.md#73-locality-rule)) is the mechanism behind R8: only
 declared dates cross a file boundary, so a tool reads a file and its direct links, never more.
@@ -192,6 +192,7 @@ fails, W fails only with `--strict`, I never fails. `--json` gives the same as J
 | `pmd check FILE [--deep] [--strict] [--today D] [--json]` | validate | §8 above |
 | `pmd schedule FILE [--today D] [--json]` | forecast dates and conflicts | file + direct links |
 | `pmd tree FILE [--depth N]` | outline with contract states | file + direct links |
+| `pmd ready FILE... [--deep] [--owner NAME] [--today D] [--json]` | open items that may start now, with owner and forecast end | file + direct links (`--deep`: all linked files) |
 | `pmd fmt FILE [--check]` | canonical form (rewrites in place unless `--check`) | file |
 
 A typical cycle for one project: `pmd check` (contract states and own conflicts), re-plan if
@@ -227,6 +228,8 @@ Agents are expected to make most edits. The conventions that keep their edits sm
 the agent rules in the [CHEATSHEET](CHEATSHEET.md) and [FORMAT §13](FORMAT.md#13-working-with-tools-and-agents):
 canonical form, a short `AGENTS.md` per folder, diagnostics with fix hints and JSON output, `done:`
 written when ticking, and **edit only what you own**.
+
+Plans mix humans and agents. Agents find work with `pmd ready`, claim it by recording `after: <today>`, and show whose it is with `owner:`. A human's queue is `pmd ready --deep ROOT --owner NAME`. A decision a human owes is an open item owned by that human, so its delay shows in the forecast ([FORMAT §7.1](FORMAT.md#71-forecast-algorithm)). This was tested in a simulated mixed team: agents planning a library release with two humans.
 
 ### 8.4 Interoperability
 
@@ -270,6 +273,7 @@ tests (input files to expected JSON) and a JSON schema for parser output.
    a sub-project per instance is the structural answer today. Is a series form ever worth it?
 8. **The "why" without version history.** Reasons for a moved promise go in commit messages, which
    assume a VCS. Stores without history need a short dated note next to the changed line.
+9. **Item descriptions.** Agents asked for acceptance criteria attached to an item (indented prose under it); today prose is free text.
 
 ## 11 Status
 

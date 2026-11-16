@@ -77,7 +77,7 @@ A `` `code span` `` is never a token, so `` `after: ^x` `` stays in the title.
 
 | Key | Value | Repeatable | Meaning |
 |---|---|---|---|
-| `owner:` | any text: `Henrik Osei`, `Name <email>`, `@jan` (runs to the next suffix token) | no | who does it |
+| `owner:` | any text: `Henrik Osei`, `Name <email>`, `@jan` (runs to the next suffix token) | no | who does it; may differ from the file's `Owner:`, which keeps the record (§13) |
 | `after:` | local `^id` or date | yes: all must finish | starts the day after that item ends; a date is the earliest start, inclusive |
 | `by:` | date, coarse date or local `^id` | no | on a link line: the need-by the parent asks; inline: the declared end |
 | `done:` | date expression | no | when a `[x]` item was completed; written by whoever ticks it; a month, quarter or range counts as its end |
@@ -185,12 +185,15 @@ end   = start + duration       if the node has a duration
       = latest child end       else if it has children
       = declared end           otherwise
 an unfinished node never ends before today
+an unfinished item with nothing to date it is a point today
 a milestone never ends before its start
 ```
 
 A project with `Done:` is finished: its span ends at that date. Work with an estimate that follows another item starts the day after it ends; a point (a
 milestone, a deliverable, or a task with no estimate and no sub-items) may fall on the day its
-predecessor ends. A cancelled node
+predecessor ends. An open item with no date, estimate, predecessor or sub-items (typically a
+decision someone owes: `- [ ] Decide conflict policy  owner: Mara`) is due now: it is a point today,
+so its successors wait for it and slip a day for every day it stays open. A cancelled node
 (`[-]`) is not waited for, and cancels its descendants (no forecast, no conflicts, not exposed). A sub-project's children are in another file, so its end is that
 file's Commitment, or, while the child has none, the line's own estimate. A deliverable's end is the
 milestone's date; so is a dated deliverable's forecast end (its declared date stays the promise).
@@ -357,7 +360,7 @@ stays plain markdown for both; these conventions make machine edits small, safe 
 - **Diagnostics an agent can act on.** `pmd check` prints one line per finding,
   `path:line: SEV CODE message`, followed by an indented `fix:` line with the suggested fix
   from §11. Codes are stable. With `--json`, `pmd check` and `pmd schedule` print the same
-  information as JSON. Tool output may be JSON; project files are always markdown.
+  information as JSON. A clean `pmd check` prints nothing and exits 0. Tool output may be JSON; project files are always markdown.
 - **An entry point for agents.** A folder of plans may hold an `AGENTS.md` that points to the
   cheat sheet and states local rules. Agents read it first.
 - **Write `done:` when ticking** `[ ]` to `[x]`, with the real completion date; if unknown, leave it out. Never invent a date.
@@ -365,4 +368,9 @@ stays plain markdown for both; these conventions make machine edits small, safe 
   to it; never change its Commitment or milestones. Never write forecasts.
 - **Reasons travel with changes.** When a change moves a Commitment, a `by:` or a milestone,
   the commit message says why.
+- **Finding work.** `pmd ready FILE... [--deep] [--owner NAME] [--today D] [--json]` lists open
+  leaf items whose `after:`s are met, with their owner (item, else nearest ancestor, else file
+  `Owner:`), `due:` (forecast end) and `started:` date. A dated milestone with no `after:` is ready
+  only on its date. `--deep` follows links all the way down. This is a tool view; the format is
+  unchanged. To claim an item, record `after: <today>` in the same edit.
 
