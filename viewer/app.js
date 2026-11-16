@@ -44,13 +44,14 @@ function exprSpan(x) { // DateExpr -> {s,e,range,text}
 }
 
 // ---------- URL / key handling ----------
-// A "key" is the URL pathname for same-origin files, else the full URL (without hash).
+// A "key" is the path relative to SITE (the folder above viewer/) for files under it, else the full URL (without hash).
+const SITE = new URL('..', location.href);
 function keyOf(href) {
   const u = new URL(href, location.href);
   u.hash = '';
-  return u.origin === location.origin ? u.pathname + u.search : u.href;
+  return u.href.startsWith(SITE.href) ? u.href.slice(SITE.href.length) : u.href;
 }
-const urlOf = (key) => new URL(key, location.origin + '/').href;
+const urlOf = (key) => new URL(key, SITE).href;
 function resolveKey(baseKey, rel) {
   try { return keyOf(new URL(rel, urlOf(baseKey)).href); } catch (e) { return rel; }
 }
@@ -752,7 +753,7 @@ async function navigate(key, crumbs, push) {
 
 function rootFromLocation() {
   const q = new URLSearchParams(location.search).get('root');
-  return q ? keyOf(new URL(q, location.origin + '/').href) : '/examples/lunar/hq/lunar-programme.md';
+  return q ? keyOf(new URL(q, SITE).href) : 'examples/lunar/hq/lunar-programme.md';
 }
 
 // ---------- events ----------
@@ -892,7 +893,7 @@ els.wbs.onchange = () => { S.wbs = els.wbs.checked; render(); };
 els.openform.onsubmit = (e) => {
   e.preventDefault();
   const v = els.rootinput.value.trim(); if (!v) return;
-  const key = keyOf(new URL(v, location.origin + '/').href);
+  const key = keyOf(new URL(v, SITE).href);
   if (key !== S.rootKey) navigate(key, [...S.crumbs, S.rootKey], true);
 };
 els.crumbs.addEventListener('click', (e) => {

@@ -127,7 +127,7 @@ Let `A[0..n)` be the atoms and `end = n`. Repeat:
 6. **Bare token.** If `a` is a tag, id, duration or date, record it, `end = end-1`, continue.
 7. Stop.
 
-The **title** is the text from the start of `A[0]` to the end of `A[end-1]`, verbatim. For a `subproject` or `deliverable` node (§2.3) the stored title is the link's text (`[Powertrain](…)` → `Powertrain`); the link itself is kept in the node's `link`.
+The **title** is the text from the start of `A[0]` to the end of `A[end-1]`, verbatim. For a `subproject` or `deliverable` node (§2.3) the stored title is the link's text (`[Lunar module](…)` → `Lunar module`); the link itself is kept in the node's `link`.
 Suffix elements are stored in their original left-to-right order. Code atoms are never tokens.
 
 Examples (known keys: owner, after, by, done):
@@ -140,7 +140,7 @@ Examples (known keys: owner, after, by, done):
 | `Review  owner: Henrik Osei  3d  ^rev` | `Review` | owner `Henrik Osei`, dur 3d, id rev |
 | `Test  by: Friday  ^t` | `Test  by: Friday` | id t (the bad key stays in the title with `W-KEYLIKE`; tokens to its right are kept) |
 | `Tooling release  #private ^tr  owner: Marco Rossi <m@example.com>` | `Tooling release` | tag private, id tr, owner person |
-| `Seat concept  2027-Q1 .. 2027-Q2` | `Seat concept` | range |
+| `Rendezvous concept  2027-Q1 .. 2027-Q2` | `Rendezvous concept` | range |
 | `2w` | `2w` | (none — title may not be empty) |
 | `Ship it  after: ^a  after: ^b` | `Ship it` | after ^a, after ^b |
 | `` Explain `after: ^x` syntax `` | `` Explain `after: ^x` syntax `` | (none) |

@@ -10,7 +10,7 @@ another markdown file makes that file a sub-project. Headings, prose and orderin
 and ignored by planning tools.
 
 ```markdown
-# Aurora EV programme
+# Lunar landing programme
 
 - Owner: Sanne Visser <sanne.visser@example.com>
 - Commitment: 2028-11-30
@@ -18,8 +18,8 @@ and ignored by planning tools.
 ## Phase 1
 
 - [ ] 2027-06-30 Design freeze  ^design-freeze
-- [ ] Concept & styling  12w  owner: @sanne
-- [ ] [Powertrain](powertrain/powertrain.md)  by: 2028-02-28
+- [ ] Concept & design  12w  owner: @sanne
+- [ ] [Lunar module](lunar-module/lunar-module.md)  by: 2028-02-28
 ```
 
 ## 2 The node model
@@ -29,10 +29,10 @@ children and predecessors (`after:`).
 
 | You write | Node reading | Dates it carries | Children |
 |---|---|---|---|
-| Task `- [ ] Seat concept  6w` | node with a duration | optional declared end | sub-items, if any |
+| Task `- [ ] Rendezvous concept  6w` | node with a duration | optional declared end | sub-items, if any |
 | Milestone `- [ ] 2027-06-30 Design freeze` | point node: declared end, no duration | the date | none |
-| Sub-project `- [ ] [Powertrain](powertrain/powertrain.md)  by: 2028-02-28` | node whose children live in another file | `by:` = what the parent asks; the child's Commitment = what it promises | the child's items |
-| Deliverable `- [ ] [Pack B-samples](battery-pack.md#b-samples)  by: 2027-09-30  ^b-samples` | node whose date comes from one milestone in another project's interface | `by:` = the contract; the milestone's date = the promise | none |
+| Sub-project `- [ ] [Lunar module](lunar-module/lunar-module.md)  by: 2028-02-28` | node whose children live in another file | `by:` = what the parent asks; the child's Commitment = what it promises | the child's items |
+| Deliverable `- [ ] [Descent stage B-samples](descent-stage.md#b-samples)  by: 2027-09-30  ^b-samples` | node whose date comes from one milestone in another project's interface | `by:` = the contract; the milestone's date = the promise | none |
 | File (project) | node whose children are its items; its header sets its keys | Commitment = declared end | its items |
 | Heading `## Phase 1` | optional grouping node, no dates; ignored if no planning items sit under it | none | items under it |
 
@@ -92,9 +92,9 @@ deliverable, §6) that other items point at by `^id`. Any other `word:` is text.
 that item's keys. A nested bullet with a checkbox is a child item; any other is prose.
 
 ```markdown
-- [ ] Powertrain validation  12w
-  - after: ^dyno-testing
-  - after: ^pack-validated
+- [ ] Lunar module validation  12w
+  - after: ^thrust-stand-testing
+  - after: ^descent-validated
   - owner: @jan
 ```
 
@@ -103,7 +103,7 @@ that item's keys. A nested bullet with a checkbox is a child item; any other is 
 The property sub-bullets directly under the H1 title are the header:
 
 ```markdown
-# Battery pack — 60 kWh platform pack
+# Descent stage — lunar module
 
 - Owner: Priya Nair <priya.nair@example.com>
 - Commitment: 2026-09-01 .. 2027-11-30
@@ -147,17 +147,17 @@ Cross-file edges exist **only as link lines**. A task depends on another project
 link line:
 
 ```markdown
-- [ ] [Inverter A-samples][inv-a]  ^inv-a
-- [ ] On-board charger integration  6w  after: ^inv-a
+- [ ] [Guidance computer flight unit][gc-flight]  ^gc-flight
+- [ ] Landing radar integration  6w  after: ^gc-flight
 
-[inv-a]: https://supplier-portal.example.net/projects/inv-2207.md#a-samples
+[gc-flight]: https://supplier-portal.example.net/projects/gc-2207.md#a-samples
 ```
 
 | Link line | Meaning |
 |---|---|
-| `[Powertrain](powertrain/powertrain.md)` | sub-project: the whole file; its end is the child's Commitment |
-| `[Pack B-samples](battery-pack.md#b-samples)` | deliverable: one interface milestone of another project (remote URLs work the same) |
-| `2027-06-30 [Pack B-samples](battery-pack.md#b-samples)` | dated deliverable: a milestone (exposed unless `#private`) whose declared date is the promise and whose forecast end is the linked milestone's date; `E-CONFLICT` if that is later. Without its own `^id` it takes the link's fragment as id (if free in the file) |
+| `[Lunar module](lunar-module/lunar-module.md)` | sub-project: the whole file; its end is the child's Commitment |
+| `[Descent stage B-samples](descent-stage.md#b-samples)` | deliverable: one interface milestone of another project (remote URLs work the same) |
+| `2027-06-30 [Descent stage B-samples](descent-stage.md#b-samples)` | dated deliverable: a milestone (exposed unless `#private`) whose declared date is the promise and whose forecast end is the linked milestone's date; `E-CONFLICT` if that is later. Without its own `^id` it takes the link's fragment as id (if free in the file) |
 
 `^id` names an item in this file; ids are unique within a file. A deliverable must target a dated milestone that is not `#private` (§8), else `E-REF-PUBLIC`.
 
@@ -165,14 +165,14 @@ link line:
 
 An item grows into a sub-project by replacing its title with a link to a new file. The line keeps
 its checkbox, `^id`, `owner:`, `by:`, `after:` and estimate; nothing else changes, and items that
-depend on `^seats` keep doing so.
+depend on `^rendezvous` keep doing so.
 
 ```markdown
-- [ ] Seat concept  6w  after: ^styling  owner: @mia  by: 2027-09-30  ^seats
-- [ ] [Seat concept](seats.md)  6w  after: ^styling  owner: @mia  by: 2027-09-30  ^seats
+- [ ] Rendezvous concept  6w  after: ^design  owner: @mia  by: 2027-09-30  ^rendezvous
+- [ ] [Rendezvous concept](rendezvous.md)  6w  after: ^design  owner: @mia  by: 2027-09-30  ^rendezvous
 ```
 
-Until `seats.md` has a Commitment the parent schedules the line from its own
+Until `rendezvous.md` has a Commitment the parent schedules the line from its own
 estimate (duration, range, `after:`); once the child promises, the promise is the line's end.
 
 ## 7 Scheduling
@@ -308,15 +308,15 @@ E = error, W = warning, I = info. The message is what a person sees. Negotiation
 | E-SYNTAX | Syntax error: a key with no value, an unclosed `<…>` or `[text](target)`, a single-valued key repeated | "Line 14: `owner:` has no value" | Give the key a value or close the bracket |
 | E-DATE | Invalid date | "Line 7: `2027-02-30` is not a date" | Write a valid date, rough date or range |
 | E-DUP-ID | The same `^id` twice in a file | "`^audit` is defined twice" | Rename one of them |
-| E-REF-LOCAL | Dangling local reference | "Line 9: no item `^dyno-testing` in this file" | Correct the id, or add `^id` to the target item |
-| E-REF-PUBLIC | Deliverable targets an item that is not a public milestone (and the files have different owners) | "`battery-pack.md#validated` is not in its interface (exposed: ^a 2027-01-01, ...)" | The target must be a dated milestone not marked #private: ask its owner to add one, or depend on the whole project |
-| E-REF-MISSING | Linked local file cannot be read; a missing `#id` lists the target's exposed milestones (at most 8) | "cannot read file: `body/doors.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
+| E-REF-LOCAL | Dangling local reference | "Line 9: no item `^thrust-stand-testing` in this file" | Correct the id, or add `^id` to the target item |
+| E-REF-PUBLIC | Deliverable targets an item that is not a public milestone (and the files have different owners) | "`descent-stage.md#validated` is not in its interface (exposed: ^a 2027-01-01, ...)" | The target must be a dated milestone not marked #private: ask its owner to add one, or depend on the whole project |
+| E-REF-MISSING | Linked local file cannot be read; a missing `#id` lists the target's exposed milestones (at most 8) | "cannot read file: `ascent/hatch.md`" | Fix the path, or restore the file. An unreachable remote target is only shown as unknown |
 | E-CYCLE | Include cycle | "`a.md` includes `b.md`, which includes `a.md`" | Remove one sub-project link |
-| E-CONFLICT | Conflict (7.2) | "`Dyno testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
-| W-OVERDUE | Contract `overdue` (§9): `by:` passed, target not delivered | "`Powertrain` is overdue: needed by 2028-02-28, not delivered" | Ask the child's owner for the delivery (if delivered, the owner ticks the milestone or sets `Done:`), or move the `by:` if the need changed |
-| W-DISPUTED | Contract `disputed` (§9): promise later than `by:`, or target withdrawn | "`Powertrain` promises 2028-03-31, after `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child moves its Commitment |
-| W-UNKNOWN | Link not readable here, on a line with `by:` | "`Powertrain` could not be read; shown as unknown" | Check the link and its access |
-| I-REQUESTED | Contract `requested`: `by:` set, no promise yet (info) | "`Powertrain` has not answered `by: 2028-02-28`" | Wait, or ask the child's owner |
+| E-CONFLICT | Conflict (7.2) | "`Thrust-stand testing` is forecast to end 2027-11-02, after its declared end 2027-10-31" | Move the declared date, shorten the estimate, or ask the container to move its `by:` |
+| W-OVERDUE | Contract `overdue` (§9): `by:` passed, target not delivered | "`Lunar module` is overdue: needed by 2028-02-28, not delivered" | Ask the child's owner for the delivery (if delivered, the owner ticks the milestone or sets `Done:`), or move the `by:` if the need changed |
+| W-DISPUTED | Contract `disputed` (§9): promise later than `by:`, or target withdrawn | "`Lunar module` promises 2028-03-31, after `by: 2028-02-28`" | Agree a new date: the parent moves its `by:` or the child moves its Commitment |
+| W-UNKNOWN | Link not readable here, on a line with `by:` | "`Lunar module` could not be read; shown as unknown" | Check the link and its access |
+| I-REQUESTED | Contract `requested`: `by:` set, no promise yet (info) | "`Lunar module` has not answered `by: 2028-02-28`" | Wait, or ask the child's owner |
 | W-KEYLIKE | Known key with a bad value, left in the title; or a list item with a known key, or a leading date plus `^id`, key or duration, but no `- [ ]` | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | Write a valid value, or reword |
 | W-NO-OWNER | Missing `Owner` | "`Owner` is not set" | Add `- Owner: Name <email>` under the title |
 

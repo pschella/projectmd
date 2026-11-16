@@ -4,6 +4,10 @@ This document explains **how projectmd works and why**, for a developer or revie
 to it. It states the requirements, the concepts that meet them and where each rule is defined.
 The rules themselves live in the reference documents, which this one links rather than repeats.
 
+projectmd is meant to be used by **humans and AI agents together**: the same plain files are read and
+written by people in any editor and by agents through the tools, and either can own a project,
+make a promise or owe a decision (§8.3).
+
 | For the exact rules, see | |
 |---|---|
 | [FORMAT.md](FORMAT.md) | semantics: node model, scheduling, interfaces, contracts, diagnostics |
@@ -269,7 +273,7 @@ tests (input files to expected JSON) and a JSON schema for parser output.
 6. **Semantics changes after release.** Changing what the format means (for example a new contract
    state) after a release needs a format version and a `pmd fmt` migration.
 
-7. **Recurring needs.** A need that repeats (one vehicle per flight) costs a few lines per instance;
+7. **Recurring needs.** A need that repeats (one launch vehicle per flight) costs a few lines per instance;
    a sub-project per instance is the structural answer today. Is a series form ever worth it?
 8. **The "why" without version history.** Reasons for a moved promise go in commit messages, which
    assume a VCS. Stores without history need a short dated note next to the changed line.

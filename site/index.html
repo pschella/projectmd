@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>projectmd: plain-markdown project plans that scale</title>
+<meta name="description" content="A plain-markdown format for project plans, from a todo list to a programme of thousands of teams, for people and agents.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox=%220%200%2032%2032%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%228%22%20fill=%22%234338ca%22/%3E%3Cpath%20d=%22M7%2011.5l2.5%202.5L14%208.5%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3Crect%20x=%2217%22%20y=%228%22%20width=%229%22%20height=%224.5%22%20rx=%222.2%22%20fill=%22%235eead4%22/%3E%3Crect%20x=%228%22%20y=%2218.5%22%20width=%2216%22%20height=%224.5%22%20rx=%222.2%22%20fill=%22%23fff%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top" aria-label="Site"><a href="index.html" class="home" aria-current="page"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#4338ca"/><path d="M7 11.5l2.5 2.5L14 8.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="17" y="8" width="9" height="4.5" rx="2.2" fill="#5eead4"/><rect x="8" y="18.5" width="16" height="4.5" rx="2.2" fill="#fff"/></svg>projectmd</a><a href="design.html">Design</a><a href="format.html">Format</a><a href="cheatsheet.html">Cheat sheet</a><a href="grammar.html">Grammar</a><a href="viewer/?root=examples/lunar/hq/lunar-programme.md&amp;today=1967-11-15">Live demo</a><a href="https://github.com/pschella/projectmd">GitHub</a></nav>
+<header class="hero"><div class="hero-in">
+<div>
+<h1 class="display">Project plans in <em>plain markdown</em></h1>
+<p class="lede">Plain-markdown project plans that scale from a todo list to a programme of thousands of teams.</p>
+<p class="key"><strong>Made for humans and AI agents working on one plan.</strong> People edit the files in any editor; agents edit the same files with the <code>pmd</code> tools. Either can own a project, promise a date or wait on the other.</p>
+<div class="cta">
+<a class="btn primary" href="design.html">Read the design</a>
+<a class="btn primary" href="format.html">Read the format</a>
+<a class="btn sec" href="viewer/?root=examples/lunar/hq/lunar-programme.md&amp;today=1967-11-15">Live demo</a>
+</div>
+</div>
+<div class="win"><div class="win-bar"><i></i><i></i><i></i><span>descent-stage.md</span></div>
+<pre><code class="language-markdown"># Lunar module — descent stage
+
+- Owner: Elena Brandt &lt;elena.brandt@lm-co.example.net&gt;
+- Commitment: 1968-11-30
+
+## Work
+- [x] 1963-06-28 Engine concept selected  ^engine
+- [ ] Descent engine design  40w  after: ^engine  owner: Kofi
+- [ ] 1965-03-31 Design freeze  ^design-freeze
+- [ ] [Landing radar](radar/radar.md)  by: 1965-06-30</code></pre></div>
+</div></header>
+<main>
+
+<section id="problem">
+<p class="eyebrow">Why</p>
+<h2>The problem</h2>
+<p>Large undertakings need many interdependent projects to come together on strict dates, with milestones, decision gates and sign-offs. Different people, teams and companies own the parts, each with their own tools.</p>
+<div class="cards">
+<div class="card"><h3>Ticket trackers</h3><p>Show <em>what</em>, but timelines and cross-team dependencies are bolted on.</p></div>
+<div class="card"><h3>Scheduling tools</h3><p>Show <em>when</em>, but are heavy and centralised: one file, one owner, everyone else gets a PDF.</p></div>
+<div class="card"><h3>Text todo lists</h3><p>Are what people actually write, but they say nothing about time.</p></div>
+</div>
+<p>projectmd keeps the todo list and adds just enough structure to answer: when? what depends on what? who promised what to whom?</p>
+</section>
+
+<section id="agents">
+<p class="eyebrow">The key message</p>
+<h2>Humans and agents, one plan</h2>
+<p>People edit the files in any editor; agents edit the same files with the <code>pmd</code> tools. Either can own a project, promise a date or wait on the other.</p>
+<div class="duo">
+<div class="card"><span class="tag">Human</span><h3>Writes plain markdown</h3><ul><li>Edits in any editor, reviews in git</li><li>Owns decisions: open items that delay whatever waits on them, so the delay shows in the forecast</li><li>Asks for a date with <code>by:</code> on their own link line</li></ul></div>
+<div class="mid"><svg viewBox="0 0 36 20" aria-hidden="true"><path d="M2 6h30m-5-4l5 4-5 4M34 14H4m5-4l-5 4 5 4"/></svg><code>.md</code>shared file</div>
+<div class="card"><span class="tag">Agent</span><h3>Uses the pmd tools</h3><ul><li><code>pmd fmt</code> rewrites a file into one canonical form, so edits give small diffs</li><li><code>pmd ready</code> lists open items that may start now; claim one with <code>after: &lt;today&gt;</code></li><li>Diagnostics come one per line with a <code>fix:</code> hint, or as JSON</li><li>Edits only what it owns</li></ul></div>
+</div>
+<p>Tested in two simulations: a 1961–69 lunar programme with 11 persona agents over 19 rounds, and a mixed team of two humans and six agents shipping a library release.</p>
+</section>
+
+<section id="idea">
+<p class="eyebrow">Concepts</p>
+<h2>The idea</h2>
+<div class="cards">
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div><h3>Every file is a project</h3><p>Its list items are tasks and milestones. A todo list is already a valid plan.</p></div>
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></div><h3>A link makes a sub-project</h3><p>The linked file can live anywhere a link can point.</p></div>
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div><h3>Owners promise, parents ask</h3><p>A child states a <code>Commitment:</code> and dated milestones. A parent states what it needs with <code>by:</code> on its link.</p></div>
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><h3>Only declared dates cross files</h3><p>Forecasts never do. A child that cannot keep its promise moves it, and that move is the signal.</p></div>
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg></div><h3>Contract states are live</h3><p>Computed from the two files: requested, agreed, disputed, overdue, delivered. Nothing is stored.</p></div>
+<div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></div><h3>Grow gradually</h3><p>To turn a task into a sub-project, replace its title with a link. Nothing else on the line changes.</p></div>
+</div>
+<div class="pills" aria-label="Contract states"><span class="pill s-req">requested</span><span class="pill s-agr">agreed</span><span class="pill s-dis">disputed</span><span class="pill s-ovd">overdue</span><span class="pill s-del">delivered</span></div>
+<p>Read more: <a href="design.html#3-the-idea-in-one-paragraph">the idea</a>, <a href="design.html#4-concepts">concepts</a>, <a href="format.html#9-contracts">contracts</a>.</p>
+</section>
+
+<section id="format">
+<p class="eyebrow">Syntax</p>
+<h2>The format at a glance</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Token</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>- [ ]</code> <code>[x]</code> <code>[-]</code></td><td>open, done, will not happen</td></tr>
+<tr><td><code>2027-06-30 …</code></td><td>leading date: a milestone, with that declared end</td></tr>
+<tr><td><code>2027-Q3</code> <code>a .. b</code></td><td>coarse date; range with declared start and end</td></tr>
+<tr><td><code>12w</code> <code>3d</code> <code>2m</code></td><td>estimate in calendar time</td></tr>
+<tr><td><code>^id</code></td><td>an id for local references</td></tr>
+<tr><td><code>owner: Name</code></td><td>who does it</td></tr>
+<tr><td><code>after: ^id</code></td><td>starts the day after that item ends</td></tr>
+<tr><td><code>by: date</code></td><td>the declared end; on a link line, the need-by asked of the child</td></tr>
+<tr><td><code>done: date</code></td><td>completion date, written when ticking <code>[x]</code></td></tr>
+<tr><td><code>[Title](path.md)</code></td><td>sub-project; the child's Commitment is its promise</td></tr>
+<tr><td><code>[Title](path.md#id)</code></td><td>deliverable: a dated milestone of another project</td></tr>
+<tr><td><code>#private</code></td><td>keeps a milestone out of its parents' view</td></tr>
+</tbody>
+</table>
+</div>
+<p><a href="format.html">Format reference</a> · <a href="cheatsheet.html">Cheat sheet</a> · <a href="grammar.html">Grammar</a></p>
+<h3>Two linked files</h3>
+<div class="duo">
+<div class="win"><div class="win-bar"><i></i><i></i><i></i><span>hq/lunar-programme.md</span></div>
+<pre><code class="language-markdown"># Lunar programme
+- Owner: Ruth Calloway
+- Commitment: 1961-06-01 .. 1969-12-31
+
+## Work
+- [ ] [Lunar module](../lm-co/lm.md)
+      by: 1969-06-30</code></pre></div>
+<div class="mid"><svg viewBox="0 0 36 20" aria-hidden="true"><path d="M2 10h30m-5-5l5 5-5 5"/></svg>link</div>
+<div class="win"><div class="win-bar"><i></i><i></i><i></i><span>lm-co/lm.md</span></div>
+<pre><code class="language-markdown"># Lunar module
+- Owner: Elena Brandt
+- Commitment: 1962-11-07 .. 1969-04-30
+
+## Work
+- [ ] Descent stage  80w  owner: Kofi Mensah</code></pre></div>
+</div>
+<p>The programme asks for 1969-06-30; the contractor promises 1969-04-30. The contract reads as <span class="pill s-agr">agreed</span>. Each side edits only its own file, and the two files can live in different organisations' stores.</p>
+</section>
+
+<section id="scale">
+<p class="eyebrow">Scale</p>
+<h2>How it scales</h2>
+<div class="cards">
+<div class="card"><h3>Locality</h3><p>Any view reads one file plus its direct links, whether the graph has 10 projects or 100,000.</p></div>
+<div class="card"><h3>Distributed storage</h3><p>A sub-project can live on disk, in git, on a shared drive, or at a URL, kept by its own team with its own tools.</p></div>
+<div class="card"><h3>Access control is external</h3><p>The store decides who reads what. In the format, a project only decides what it shows the level above.</p></div>
+<div class="card"><h3>No special root</h3><p>Every project is the top of its own view.</p></div>
+</div>
+<p>Measured on synthetic trees (release build, Apple M2): <code>pmd check</code> takes about 3 ms at 1,111 files and at 111,111 files. A deep check is linear: 11 s for 111,111 files. Details in <a href="https://github.com/pschella/projectmd/blob/main/docs/BENCHMARKS.md">BENCHMARKS</a>.</p>
+</section>
+
+<section id="demo">
+<p class="eyebrow">Demo</p>
+<h2>See it live</h2>
+<div class="shot"><a href="viewer/?root=examples/lunar/hq/lunar-programme.md&amp;today=1967-11-15"><div class="win"><div class="win-bar"><i></i><i></i><i></i><span>Lunar programme, live Gantt viewer</span></div><img src="img/gantt.png" alt="Gantt chart of the lunar programme in the web viewer" loading="lazy"></div></a></div>
+<p><a href="viewer/?root=examples/lunar/hq/lunar-programme.md&amp;today=1967-11-15">Open the lunar programme</a> in the web viewer.</p>
+</section>
+
+<section id="tools">
+<p class="eyebrow">Tools</p>
+<h2>Tools</h2>
+<p>Tools are reference implementations; the format is the product. Anyone can write others.</p>
+<div class="cards">
+<div class="card"><h3>CLI: pmd</h3><p>Parse, check, schedule, list ready work, format and tree.</p></div>
+<div class="card"><h3>Web Gantt viewer</h3><p>Static JavaScript plus WebAssembly, no build step. <a href="viewer/?root=examples/lunar/hq/lunar-programme.md&amp;today=1967-11-15">Open the lunar programme</a>.</p></div>
+<div class="card"><h3>Rust library</h3><p><code>pmd-core</code> is the parser and validator; it also builds to WebAssembly.</p></div>
+</div>
+<div class="win term"><div class="win-bar"><i></i><i></i><i></i><span>pmd</span></div>
+<pre><code>usage: pmd parse FILE
+     | check FILE... [--deep] [--strict] [--today D] [--json]
+     | schedule FILE... [--today D] [--json]
+     | ready FILE... [--deep] [--owner NAME] [--today D] [--json]
+     | fmt FILE... [--check]
+     | tree FILE... [--depth N] [--today D]</code></pre></div>
+<p>Build and run: see the <a href="https://github.com/pschella/projectmd#quick-start">README quick start</a>.</p>
+</section>
+
+<section id="docs">
+<p class="eyebrow">Read on</p>
+<h2>Documentation</h2>
+<ul class="plain">
+<li><a href="design.html">Design</a>: requirements, concepts, what tools can check</li>
+<li><a href="format.html">Format</a>: node model, scheduling, interfaces, contracts, validation</li>
+<li><a href="cheatsheet.html">Cheat sheet</a>: the whole format on one page; hand it to an agent</li>
+<li><a href="grammar.html">Grammar</a>: how text is parsed</li>
+<li><a href="https://github.com/pschella/projectmd/blob/main/docs/VIEWER-CONTRACT.md">Viewer contract</a> and <a href="https://github.com/pschella/projectmd/blob/main/docs/BENCHMARKS.md">benchmarks</a></li>
+<li><a href="https://github.com/pschella/projectmd/blob/main/examples/README.md">Examples</a>: a fictionalised lunar programme in seven stores, and a company split across three</li>
+</ul>
+</section>
+</main>
+<footer>
+<span>MIT OR Apache-2.0</span><a href="https://github.com/pschella/projectmd">GitHub</a><span>format status: draft 0.2</span>
+</footer>
+<script src="highlight.js" defer></script>
+</body>
+</html>

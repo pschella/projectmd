@@ -3,22 +3,26 @@
 **A plain-markdown format for project plans, and a model for scaling them: from one todo list
 to a large programme spread across many teams, repositories and companies.**
 
+**Built for humans and AI agents alike.** People read and edit the files in any editor; agents read
+and edit the same files with the `pmd` tools. Both own projects, make promises and depend on each
+other in one plan: a human can delegate to an agent, an agent can wait on a human's decision.
+
 Many interdependent projects must come together on strict timelines, with milestones,
 decision gates and sign-offs. Ticket trackers are poor at timelines, scheduling tools are heavy
 and siloed, and text todo lists show *what* but not *when*. projectmd keeps the todo list and
 adds just enough structure to answer "when?" and "what depends on what?":
 
 ```markdown
-# Battery pack — 60 kWh platform pack
+# Lunar module — descent stage
 
-- Owner: Priya Nair <priya.nair@example.com>
-- Commitment: 2027-11-30
+- Owner: Elena Brandt <elena.brandt@lm-co.example.net>
+- Commitment: 1968-11-30
 
 ## Work
-- [x] 2026-10-31 Cell chemistry selected  ^chemistry
-- [ ] Module & pack design  12w  after: ^chemistry  owner: Priya
-- [ ] 2027-09-30 B-samples available  ^b-samples
-- [ ] [Cell module](cell-module.md)  by: 2027-06-30
+- [x] 1963-06-28 Engine concept selected  ^engine
+- [ ] Descent engine design  40w  after: ^engine  owner: Kofi Mensah
+- [ ] 1965-03-31 Design freeze  ^design-freeze
+- [ ] [Landing radar](radar/radar.md)  by: 1965-06-30
 ```
 
 - **Every file is a project.** Its list items are tasks and milestones. A link to another file
@@ -33,7 +37,7 @@ adds just enough structure to answer "when?" and "what depends on what?":
 
 A plan does not have to start big. Each step is optional, and each keeps the files you already have valid:
 
-1. **A todo list.** `- [ ] Order cells` is already a project.
+1. **A todo list.** `- [ ] Book the test stand` is already a project.
 2. **Add time** where it helps: a date, a duration or an `after:`. Tools forecast and flag conflicts.
 3. **Split** an item that grew into its own file: replace its title with a link. Nothing else on the line changes.
 4. **Promise.** Give the file a `Commitment:`. Its milestones are what parents see; `#private` hides one.

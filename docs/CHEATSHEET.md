@@ -4,23 +4,23 @@ A projectmd file is markdown. Planning meaning comes only from the shapes below;
 else is free text.
 
 ```markdown
-# Battery pack — 60 kWh platform pack
+# Lunar module — descent stage
 
-- Owner: Priya Nair <priya.nair@example.com>
-- Commitment: 2026-09-01 .. 2027-11-30
+- Owner: Elena Brandt <elena.brandt@lm-co.example.net>
+- Commitment: 1963-01-07 .. 1968-11-30
 
 ## Work
-- [x] 2026-10-31 Cell chemistry selected  ^chemistry
-- [ ] Module & pack design  12w  after: ^chemistry  owner: Priya
-- [ ] 2027-06-30 Design freeze  ^design-freeze
-- [ ] [Inverter A-samples][inv-a]  ^inv-a
-- [ ] Thermal validation  8w  after: ^design-freeze  after: ^inv-a
-- [ ] [Cooling loop](cooling/cooling.md)  by: 2027-03-31
-- [ ] [Pack A-samples](pack.md#a-samples)  by: 2027-03-31  ^a-samples
-- [ ] [Pack B-samples](pack.md#b-samples)  by: 2027-09-30  ^b-samples
-- Supplier prefers Q2 delivery.        <- prose: no checkbox, ignored (so is `- 2027-06-30 note`)
+- [x] 1963-06-28 Engine concept selected  done: 1963-07-12  ^engine
+- [ ] Descent engine design  40w  after: ^engine  owner: Kofi Mensah
+- [ ] 1965-03-31 Design freeze  ^design-freeze
+- [ ] [Guidance computer][agc]  ^agc
+- [ ] Integrated descent test  12w  after: ^design-freeze  after: ^agc
+- [ ] [Landing radar](radar/radar.md)  by: 1965-06-30
+- [ ] [LM test article](lm.md#ta-int)  by: 1965-11-30  ^ta-int
+- [ ] [First flight-ready LM](lm.md#flight-ready)  by: 1968-11-30  ^flight-ready
+- Throttle range still under study.        <- prose: no checkbox, ignored (so is `- 1965-03-31 note`)
 
-[inv-a]: https://supplier-portal.example.net/projects/inv-2207.md#a-samples
+[agc]: https://guidance-lab.example.edu/plans/agc.md#flight-unit
 ```
 
 | Token | Meaning |
