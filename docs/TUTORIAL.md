@@ -1,11 +1,17 @@
 # Your first plan in ten minutes
 
 A project manager thinks in people, work and dates: who does what, how long it takes, and when it must
-be done. Most of those dates are not computed. They are agreed: a need-by date asked for in a meeting, a
-delivery date promised in an email, a launch date the team commits to. A projectmd plan is a Markdown
-file where each person writes down what they need and what they promised. `pmd` does not make those
-decisions. It reads the files, forecasts what follows from them, and points out where the agreements no
-longer fit together, so the next conversation is about the right thing.
+be done. In projectmd, ownership comes first. Every piece of work has one owner, a person who answers
+for it. When an owner needs something from someone else, they ask that person for a commitment: a
+result by a date. The person asked owns the answer. Once they have agreed, it is their responsibility
+either to deliver by the agreed date or to come back and re-negotiate before it passes.
+
+Most dates in a plan are therefore not computed. They are agreed between owners: a need-by date asked
+for in a meeting, a delivery date promised in an email, a launch date the project commits to. A projectmd
+plan is a Markdown file where an owner writes down what they own, what they asked others for, and what
+they promised. `pmd` does not make those decisions. It reads the files, forecasts what follows from
+them, and shows each owner where their agreements no longer fit together, so the next conversation is
+between the right people about the right thing.
 
 Noor Haddad is opening a bakery on 2027-06-01. We build her plan in eight steps. The finished
 files are in [examples/bakery/](../examples/bakery/README.md). Commands assume `pmd` is on your
@@ -13,8 +19,10 @@ path and `PMD_TODAY=2027-03-01` (a fixed "today", so the output below is reprodu
 
 ## 1. A todo list is already a plan
 
-Start with the work. Make a file `bakery.md`: a heading, the person responsible for the project, and
-checkbox items. Nothing else is required.
+Start with the owner and the work. Make a file `bakery.md`: a heading, the project's `Owner:` and
+checkbox items. Nothing else is required. The owner is the one person who answers for the whole plan;
+here that is Noor. Each file has one owner (`pmd check` warns when it is missing), and only that owner
+edits it. Others ask; the owner writes.
 
 ```markdown
 # Bakery opening
@@ -38,11 +46,12 @@ Bakery opening  (bakery.md)
     [ ] Bakery opens
 ```
 
-## 2. Add people and time where it helps
+## 2. Give each piece of work an owner, then time
 
-For each piece of work, say who does it (`owner:`), how long it takes (`3w`, real calendar time) and
-what it waits for (`after:`). Give an item an `^id` when other items refer to it. Add only what you
-know. In days, `d` counts weekdays (`3d` from a Thursday ends on Monday) and `w` counts calendar weeks
+For each piece of work, say who owns it (`owner:`): the person who will do it, or see that it gets
+done. An item without `owner:` belongs to the file's owner, so the opening below is Noor's. Then add how long it takes (`3w`, real
+calendar time) and what it waits for (`after:`). Give an item an `^id` when other items refer to it.
+Add only what you know. In days, `d` counts weekdays (`3d` from a Thursday ends on Monday) and `w` counts calendar weeks
 (`1w` is seven days). `after:` also takes a real date: the earliest day the work can start.
 
 ```markdown
@@ -79,13 +88,14 @@ Noor Haddad  2027-W10  2 at once: bakery.md:6 Hire two bakers; bakery.md:7 Test 
 ```
 
 Noor hires and tests the menu in the same two weeks. If that is too much, `after: ^hire` on the test
-menu puts them in sequence.
+menu puts them in sequence. Load is counted per owner, because people, not tasks, run out of time.
 
 ## 3. Dates: milestones and the commitment
 
-Some dates are decided by people, not by the plan. Noor has agreed the opening date with her landlord
-and her investors: 2027-06-01. A date in front of an item makes it a milestone. The `Commitment:`
-header records the date the whole project has promised.
+Some dates are decided by people, not by the plan. Her investors asked Noor to open on 2027-06-01, and
+she agreed. That makes the opening her commitment: as the project's owner she must deliver it, or go
+back to them and re-negotiate. A date in front of an item makes it a milestone. The `Commitment:`
+header records the date the owner has promised for the whole project.
 
 ```markdown
 - Commitment: 2027-06-01
@@ -110,15 +120,16 @@ Bakery opening  2027-03-01 .. 2027-05-23
 Slack is the margin between the date promised and the date forecast. With only Noor's own work in the
 plan, the opening looks easy. The kitchen will change that.
 
-## 4. Work other people own
+## 4. Ask other owners for commitments
 
-The kitchen is Dmitri's job and the food licence is Ama's. A short task for someone else is just an
-item with their name as `owner:`. Dmitri and Ama run plans of their own, though, so Noor does not copy
-their work into hers.
+The kitchen is owned by Dmitri and the food licence by Ama. A short task for someone else is just an
+item with their name as `owner:`. Dmitri and Ama own plans of their own, though, so Noor does not copy
+their work into hers, and she does not tell them how to do it. She asks each of them for a result by a
+date.
 
-At the Monday meeting Noor tells Dmitri she needs the ovens by 2027-05-10 to test the menu, and the
-whole kitchen by 05-15. She emails Ama the same week about the licence. Then she writes down what she
-asked: one line per result she needs, linked to their file, with the date she asked for as `by:`.
+At the Monday meeting Noor asks Dmitri for the ovens by 2027-05-10, so she can test the menu, and the
+whole kitchen by 05-15. She emails Ama the same week to ask for the licence. Then she writes down what she
+asked: one line per result she needs, linked to the owner's file, with the asked-by date as `by:`.
 `Test menu` can start once the ovens are in.
 
 ```markdown
@@ -128,9 +139,9 @@ asked: one line per result she needs, linked to their file, with the date she as
 - [ ] Test menu  2w  after: ^ovens  owner: Noor Haddad  ^menu
 ```
 
-The `by:` is a request, not an order: it is how the people who do the work find out what is needed and
-when. The go/no-go now also waits for the licence, and the opening for the fit-out. Commands that should
-follow these links take `--deep`. Dmitri sees his own work:
+The `by:` is a request, not an order. It becomes a commitment only when the owner of the work agrees to
+it in their own file. The go/no-go now also waits for the licence, and the opening for the fit-out.
+Commands that should follow these links take `--deep`. Dmitri sees the work he owns:
 
 ```
 $ pmd ready bakery.md --deep --owner Dmitri
@@ -141,9 +152,10 @@ fitout/fitout.md:7  DO  Design  owner: Dmitri Volkov  due: 2027-03-14  started: 
 
 ## 5. Negotiate a date
 
-Dmitri looks at his crew and his suppliers and replies by email: ovens on 2027-05-04, but the full
-fit-out not before 2027-05-25. He writes the same dates into his own file, where they are his promise.
-Noor's file does not change, but her schedule does:
+An owner who is asked must answer. Dmitri looks at his crew and his suppliers and replies by email:
+ovens on 2027-05-04, but the full fit-out not before 2027-05-25. He writes the same dates into his own
+file, where they are his commitments. From now on they are his to keep. Noor's file does not change,
+but her schedule does:
 
 ```
 $ pmd schedule bakery.md
@@ -161,8 +173,9 @@ Bakery opening  2027-03-01 .. 2027-05-25
 
 The ovens and the licence come in time. The fit-out does not: Noor asked for 05-15, Dmitri can do 05-25.
 Nobody had to compare the email with the plan by hand; the files disagree and `pmd` says so. The date
-Dmitri gives is what he can do; Noor's `by:` is only what she asked for. So settling it is Noor's
-decision, and it shows up in her queue:
+Dmitri gives is what he commits to; Noor's `by:` is only what she asked for. Dmitri did his part by
+answering honestly instead of agreeing to a date he could not keep. Now the gap is Noor's, because she
+owns the opening, and it shows up in her queue:
 
 ```
 $ pmd ready bakery.md --deep --owner Noor
@@ -172,15 +185,22 @@ bakery.md:9  DECIDE  Kitchen fit-out complete  owner: Noor Haddad  due: 2027-05-
 2 ready (3 files read)
 ```
 
-How to settle it is a conversation, not a command. The opening still has seven days of slack, so Noor
-can accept (change her `by:` to 2027-05-25), re-plan her own work, or call Dmitri and ask what it would
-take to finish earlier. Whatever they agree, each writes their side into their own file. `pmd check
---deep` keeps the warning (`W-DISPUTED`) until the two files agree again.
+How to settle it is a conversation between two owners, not a command. The opening still has seven days
+of slack, so Noor can accept (change her `by:` to 2027-05-25), re-plan her own work, or call Dmitri and
+ask what it would take to finish earlier. Whatever they agree, each writes their side into their own
+file. Neither edits the other's. `pmd check --deep` keeps the warning (`W-DISPUTED`) until the two
+files agree again.
 
-## 6. Each person's queue: `pmd ready`
+The same holds later. If Dmitri's building work runs late and 05-25 is at risk, it is his
+responsibility to tell Noor and re-negotiate before the date passes, not after. If the opening itself
+slips past 06-01, it is Noor's to go back to her investors.
 
-Each person (or agent) asks for their own queue: `do` for work, `decide` for disputes they must settle,
-`answer` for requests they have not answered, `deliver` for overdue promises, `fix` for unreadable links.
+## 6. Each owner's queue: `pmd ready`
+
+Each owner (a person, or an agent working for one) asks for their own queue. It lists what they are
+responsible for right now: `do` for work they own, `decide` for gaps between what they asked and what
+was committed, `answer` for requests they have not yet answered, `deliver` for commitments past their
+date (deliver now, or re-negotiate), `fix` for unreadable links.
 
 ```
 $ pmd ready bakery.md --deep --owner Ama
@@ -207,8 +227,9 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18  after
   <- fitout/fitout.md:7  Design  2027-03-14  estimate, starts 2027-03-01 (after: date)
 ```
 
-The chain ends in Dmitri's design work, not in anything Noor controls. If she wants the go/no-go
-earlier, `pmd why` tells her who to talk to and about what: Dmitri, and the date the design is done.
+The chain crosses into work Dmitri owns. Noor plans on his commitment (05-04), not on his internal
+forecast; how he gets there is his business. If she wants the go/no-go earlier, `pmd why` tells her
+which owner to ask and about what: Dmitri, and whether the ovens can come sooner.
 Each hop is local, so this works however large the plan grows.
 
 ## 8. Repair a date with `pmd replan`, review with `pmd changes` and `pmd board`
@@ -223,8 +244,8 @@ bakery.md:9  accept dispute  2027-05-15 → 2027-05-25 (+10d)
 1 edits (dry run; --write to apply)
 ```
 
-`replan` edits only the file it is given. It never changes another team's dates: the fit-out promise is
-Dmitri's to make, and only he changes it. `replan` is a suggestion for Noor to weigh before she
+`replan` edits only the file it is given, so only its owner's dates. It never changes another owner's
+dates: the fit-out commitment is Dmitri's, and only he changes it. `replan` is a suggestion for Noor to weigh before she
 answers Dmitri, not an answer on her behalf.
 
 `pmd changes OLD NEW` lists what moved between two versions of one file. Give it the old version
@@ -243,7 +264,8 @@ pmd board fitout/fitout.md
 
 Every command is a view. None of them stores state, so you can run them at any time: before a meeting
 to see what needs discussing, after it to check that what was agreed adds up. The decisions stay with
-the people; the files remember them, and `pmd` keeps them consistent.
+the owners; each owner's file records what they asked for and what they committed to, and `pmd` checks
+that the commitments still fit together.
 
 ## Next steps
 
