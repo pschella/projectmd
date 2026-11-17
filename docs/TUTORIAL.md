@@ -1,8 +1,11 @@
 # Your first plan in ten minutes
 
 A project manager thinks in people, work and dates: who does what, how long it takes, and when it must
-be done. A projectmd plan is a Markdown file that says exactly that, and `pmd` answers the questions a
-project manager asks of it.
+be done. Most of those dates are not computed. They are agreed: a need-by date asked for in a meeting, a
+delivery date promised in an email, a launch date the team commits to. A projectmd plan is a Markdown
+file where each person writes down what they need and what they promised. `pmd` does not make those
+decisions. It reads the files, forecasts what follows from them, and points out where the agreements no
+longer fit together, so the next conversation is about the right thing.
 
 Noor Haddad is opening a bakery on 2027-06-01. We build her plan in eight steps. The finished
 files are in [examples/bakery/](../examples/bakery/README.md). Commands assume `pmd` is on your
@@ -80,8 +83,9 @@ menu puts them in sequence.
 
 ## 3. Dates: milestones and the commitment
 
-Some dates are fixed: the opening is 2027-06-01. A date in front of an item makes it a milestone. The
-`Commitment:` header is the date the whole project promises.
+Some dates are decided by people, not by the plan. Noor has agreed the opening date with her landlord
+and her investors: 2027-06-01. A date in front of an item makes it a milestone. The `Commitment:`
+header records the date the whole project has promised.
 
 ```markdown
 - Commitment: 2027-06-01
@@ -89,8 +93,8 @@ Some dates are fixed: the opening is 2027-06-01. A date in front of an item make
 - [ ] 2027-06-01 Bakery opens  after: ^gono
 ```
 
-You write only the dates you decide. Everything else is forecast from the durations and the order, and
-never stored.
+You write only the dates that were agreed. Everything else is forecast from the durations and the
+order, and never stored, so the forecast cannot drift away from what people actually said.
 
 ```
 $ pmd schedule bakery.md
@@ -110,8 +114,12 @@ plan, the opening looks easy. The kitchen will change that.
 
 The kitchen is Dmitri's job and the food licence is Ama's. A short task for someone else is just an
 item with their name as `owner:`. Dmitri and Ama run plans of their own, though, so Noor does not copy
-their work into hers. She adds one line per result she needs, links it to their file, and says when
-she needs it with `by:`. `Test menu` can start once the ovens are in.
+their work into hers.
+
+At the Monday meeting Noor tells Dmitri she needs the ovens by 2027-05-10 to test the menu, and the
+whole kitchen by 05-15. She emails Ama the same week about the licence. Then she writes down what she
+asked: one line per result she needs, linked to their file, with the date she asked for as `by:`.
+`Test menu` can start once the ovens are in.
 
 ```markdown
 - [ ] [Ovens installed](fitout/fitout.md#ovens)  by: 2027-05-10  ^ovens
@@ -120,7 +128,8 @@ she needs it with `by:`. `Test menu` can start once the ovens are in.
 - [ ] Test menu  2w  after: ^ovens  owner: Noor Haddad  ^menu
 ```
 
-The go/no-go now also waits for the licence, and the opening for the fit-out. Commands that should
+The `by:` is a request, not an order: it is how the people who do the work find out what is needed and
+when. The go/no-go now also waits for the licence, and the opening for the fit-out. Commands that should
 follow these links take `--deep`. Dmitri sees his own work:
 
 ```
@@ -132,8 +141,9 @@ fitout/fitout.md:7  DO  Design  owner: Dmitri Volkov  due: 2027-03-14  started: 
 
 ## 5. Negotiate a date
 
-Dmitri answers with dates in his own file: ovens on 2027-05-04, fit-out complete on 2027-05-25. Noor's
-file does not change, but her schedule does:
+Dmitri looks at his crew and his suppliers and replies by email: ovens on 2027-05-04, but the full
+fit-out not before 2027-05-25. He writes the same dates into his own file, where they are his promise.
+Noor's file does not change, but her schedule does:
 
 ```
 $ pmd schedule bakery.md
@@ -150,8 +160,9 @@ Bakery opening  2027-03-01 .. 2027-05-25
 ```
 
 The ovens and the licence come in time. The fit-out does not: Noor asked for 05-15, Dmitri can do 05-25.
-The date Dmitri gives is what he can do; Noor's `by:` is only what she asked for. So settling it is
-Noor's decision, and it shows up in her queue:
+Nobody had to compare the email with the plan by hand; the files disagree and `pmd` says so. The date
+Dmitri gives is what he can do; Noor's `by:` is only what she asked for. So settling it is Noor's
+decision, and it shows up in her queue:
 
 ```
 $ pmd ready bakery.md --deep --owner Noor
@@ -161,8 +172,10 @@ bakery.md:9  DECIDE  Kitchen fit-out complete  owner: Noor Haddad  due: 2027-05-
 2 ready (3 files read)
 ```
 
-The opening still has seven days of slack, so Noor can accept (change her `by:` to 2027-05-25),
-re-plan, or talk to Dmitri. `pmd check --deep` keeps the warning (`W-DISPUTED`) until she does.
+How to settle it is a conversation, not a command. The opening still has seven days of slack, so Noor
+can accept (change her `by:` to 2027-05-25), re-plan her own work, or call Dmitri and ask what it would
+take to finish earlier. Whatever they agree, each writes their side into their own file. `pmd check
+--deep` keeps the warning (`W-DISPUTED`) until the two files agree again.
 
 ## 6. Each person's queue: `pmd ready`
 
@@ -194,7 +207,8 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18  after
   <- fitout/fitout.md:7  Design  2027-03-14  estimate, starts 2027-03-01 (after: date)
 ```
 
-The chain ends in Dmitri's file, not in Noor's: if Noor wants the date earlier, that is the conversation to have.
+The chain ends in Dmitri's design work, not in anything Noor controls. If she wants the go/no-go
+earlier, `pmd why` tells her who to talk to and about what: Dmitri, and the date the design is done.
 Each hop is local, so this works however large the plan grows.
 
 ## 8. Repair a date with `pmd replan`, review with `pmd changes` and `pmd board`
@@ -203,14 +217,15 @@ Each hop is local, so this works however large the plan grows.
 unless you add `--write`. On the bakery it finds one disputed promise: Noor asked for the fit-out by
 2027-05-15, and Dmitri promised 2027-05-25.
 
-```bash
-cd parser && PMD_TODAY=2027-03-01 ./target/release/pmd replan ../examples/bakery/bakery.md
-# ../examples/bakery/bakery.md:9  accept dispute  2027-05-15 → 2027-05-25 (+10d)
-# 1 edits (dry run; --write to apply)
+```
+$ pmd replan bakery.md
+bakery.md:9  accept dispute  2027-05-15 → 2027-05-25 (+10d)
+1 edits (dry run; --write to apply)
 ```
 
-`replan` edits only the file it is given. It never changes another team's dates, so the fit-out
-promise stays with Dmitri's file. Noor can accept the date, or ask Dmitri to move it.
+`replan` edits only the file it is given. It never changes another team's dates: the fit-out promise is
+Dmitri's to make, and only he changes it. `replan` is a suggestion for Noor to weigh before she
+answers Dmitri, not an answer on her behalf.
 
 `pmd changes OLD NEW` lists what moved between two versions of one file. Give it the old version
 from git:
@@ -226,7 +241,9 @@ Its footer gives the flow forecast for each open milestone.
 pmd board fitout/fitout.md
 ```
 
-Every command is a view. None of them stores state, so you can run them at any time.
+Every command is a view. None of them stores state, so you can run them at any time: before a meeting
+to see what needs discussing, after it to check that what was agreed adds up. The decisions stay with
+the people; the files remember them, and `pmd` keeps them consistent.
 
 ## Next steps
 
