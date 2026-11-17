@@ -58,13 +58,13 @@ bakery.md:7  DO  Test menu  owner: Noor Haddad  due: 2027-03-14
 
 ## 3. Milestones and promises
 
-A leading date makes a milestone: a promise that other plans may depend on. Header `Commitment:` names
-the promise of the whole project; here it is the opening, by id.
+A leading date makes a milestone: a promise that other plans may depend on. Header `Commitment:` is
+the promise of the whole project: here, the opening date.
 
 ```markdown
-- Commitment: ^opening
+- Commitment: 2027-06-01
 ...
-- [ ] 2027-06-01 Bakery opens  after: ^gono  ^opening
+- [ ] 2027-06-01 Bakery opens  after: ^gono
 ```
 
 Only declared dates are written. The forecast is computed, never stored (output here is from the finished example, after step 5).

@@ -1,7 +1,7 @@
 # Bakery opening
 
 - Owner: Noor Haddad
-- Commitment: ^opening
+- Commitment: 2027-06-01
 
 ## Work
 - [ ] Hire two bakers  3w  owner: Noor Haddad  ^hire
@@ -11,4 +11,4 @@
 - [ ] Test menu  2w  after: ^ovens  owner: Noor Haddad  ^menu
   Done when three bakes in a row pass the tasting panel.
 - [ ] Go/no-go decision  after: ^menu  after: ^hire  after: ^licence  owner: Noor  ^gono
-- [ ] 2027-06-01 Bakery opens  after: ^gono  after: ^fitout  ^opening
+- [ ] 2027-06-01 Bakery opens  after: ^gono  after: ^fitout
