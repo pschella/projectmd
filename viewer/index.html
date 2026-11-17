@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>projectmd viewer</title>
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <header id="toolbar">
@@ -53,6 +53,7 @@
     <div class="tgrp gantt-only" role="group" aria-label="Time presets">
       <button type="button" data-preset="4w" title="Today minus 1 week to today plus 4 weeks">4 weeks</button>
       <button type="button" data-preset="q" title="Today minus 2 weeks to today plus 3 months">Quarter</button>
+      <button type="button" id="cpbtn" aria-pressed="false" title="Outline the critical path: the driver chain back from the project's end (c)">Critical path</button>
     </div>
     <div class="seg gantt-only" id="levelseg" role="group" aria-label="Tree level">
       <button type="button" data-lvl="1" title="Show only top-level items">Level 1</button><button type="button" data-lvl="2" title="Expand to level 2">Level 2</button><button type="button" data-lvl="3" title="Expand to level 3">Level 3</button><button type="button" data-lvl="all" title="Expand all loaded items (sub-projects not loaded are not fetched)">All</button>
@@ -68,6 +69,7 @@
   <button type="button" class="achip" data-attn="due14" aria-pressed="false" title="Open items whose declared or forecast end is within 14 days">Due in 14 days <b>0</b></button>
   <button type="button" class="achip" data-attn="late" aria-pressed="false" title="Done later than declared">Late deliveries <b>0</b></button>
   <button type="button" class="achip" data-attn="tight" aria-pressed="false" title="Open items with a declared end and 0 to 2 days of slack (zero is a risk)">Tight <b>0</b></button>
+  <button type="button" class="achip" data-attn="overlap" aria-pressed="false" hidden title="Open tasks of one owner, lasting more than a day, that overlap in time">Overlap <b>0</b></button>
   <span id="fstate" aria-live="polite"></span>
   <span class="attn-side">
     <details id="colmenu">
@@ -77,6 +79,7 @@
         <label class="chk"><input type="checkbox" data-colopt="next"> Next move</label>
       </div>
     </details>
+    <button type="button" id="lgbtn" aria-haspopup="dialog" aria-expanded="false" title="What the bars, marks and colours mean (?)">Legend</button>
     <button type="button" id="copylink" title="Copy a link to this view (root, plan date, filters, selection)">Copy link</button>
     <button type="button" id="printbtn" title="Print the table and chart">Print</button>
   </span>
@@ -115,7 +118,23 @@
   <div id="mdhead"><strong id="mdtitle"></strong><a id="mdraw" target="_blank" rel="noopener noreferrer">raw</a><button id="mdopen" title="Make this file the top-level Gantt project">Open as project</button><button id="mdclose" title="Close (Esc)">Close</button></div>
   <div id="mdbody"></div>
 </div>
+<div id="lgpop" class="lgpop" hidden role="dialog" aria-label="Legend">
+  <h2>Legend</h2>
+  <ul class="lgl">
+    <li><span class="sw"><i class="lg bar st-open"></i><i class="lg bar st-done"></i></span>Task: open (blue) or done (green)</li>
+    <li><span class="sw"><i class="lg bar fc"></i></span>Forecast only: dashed, placed by links or duration</li>
+    <li><span class="sw"><i class="lg declln"></i></span>Declared span, when it differs from the forecast</li>
+    <li><span class="sw"><i class="lg ms"></i></span>Milestone (diamond)</li>
+    <li><span class="sw"><i class="lg sub"></i></span>Sub-project (dashed until its file is loaded)</li>
+    <li><span class="sw"><i class="lg bar conf"></i><i class="lg late"></i></span>Red: conflict (forecast after the declared end) or late delivery</li>
+    <li><span class="sw"><i class="lg decl"></i></span>Declared end (tick)</li>
+    <li><span class="sw"><span class="ct ct-disputed">disputed</span><span class="ct ct-overdue">overdue</span></span>Contract: the parent decides, or the child delivers</li>
+    <li><span class="sw"><i class="lg todayl"></i></span>Today</li>
+    <li><span class="sw"><i class="lg wkend"></i></span>Weekend (shown at 6 px per day or more)</li>
+    <li><span class="sw"><i class="lg cpl"></i></span>Critical path: outlined bars, marked in the table</li>
+  </ul>
+</div>
 <div id="tip" hidden></div>
-<script type="module" src="app.js?v=23"></script>
+<script type="module" src="app.js?v=25"></script>
 </body>
 </html>

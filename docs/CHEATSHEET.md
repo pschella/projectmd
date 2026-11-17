@@ -32,7 +32,7 @@ else is free text.
 | `#private` | keeps a milestone out of its parents' view |
 | `2027-Q3` `2027-06` | coarse date: first day as a start, last day as an end |
 | `a .. b` | range: with no estimate and no sub-items, a fixed window (start = later of a and `after:`, end = b); with sub-items it ends at the latest sub-item, and b gives only slack and conflict |
-| `12w` `3d` `2m` | estimate, real calendar time, days inclusive (1w = 7 days, 1m = 1 calendar month) |
+| `12w` `3d` `2m` | estimate, days inclusive: `d` counts weekdays Mon to Fri (no holidays), `w` and `m` are calendar time (1w = 7 days, 1m = 1 calendar month) |
 | `^id` | defines an id for local references |
 | `owner: Name` | who does it; text up to the next token (`Henrik Osei`, `Name <email>`, `@h`). A decision you need from Mara: `- [ ] Decide X  owner: Mara` in your file; undated, it is due today, so what waits on it slips daily |
 | `after: ^id` | starts the day after that local item ends; repeatable; `after: DATE` = earliest start (also records an actual start) |
@@ -59,3 +59,4 @@ For agents (FORMAT §13):
 8. Write canonical form (`pmd fmt`) and finish with `pmd check` clean (exit 0; `--strict` in CI; `PMD_TODAY=YYYY-MM-DD` replaces `--today`).
 9. `pmd ready FILE... [--deep] [--owner NAME]` is your queue. Kinds: `DO` (work that can start), `DECIDE` (a disputed promise on your link line), `ANSWER` (a parent asked you for a date), `DELIVER` (a promise you owe is overdue), `FIX` (unreadable link). Claim work with `after: <today>` in the same edit.
 10. `pmd why FILE ^id` names what drives an item's end (follow the chain down); `pmd changes OLD NEW` lists what moved between two versions; `pmd replan FILE` proposes edits that make your dates consistent (`--write` applies); `pmd board FILE` shows the work as a board (informative).
+11. `pmd schedule FILE... --rows` prints one JSON line per item for other tools; `pmd load FILE...` shows where an owner has two or more items at once (informative).

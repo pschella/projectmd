@@ -263,3 +263,60 @@ fn b1_unclosed_brackets_are_text() {
     let p = parse_str("# T\n\n- [ ] Link bad [x](y.md  1w\n- [ ] A  owner: Ann <a@b\n");
     assert!(!p.diagnostics.iter().any(|d| d.code == "E-SYNTAX"));
 }
+
+// ---- owner ends at a two-space separator; unknown keys in the suffix (FORMAT §3) -----------------
+
+#[test]
+fn owner_value_ends_at_two_spaces() {
+    // the bug: `effort: 6d` is not owner text and `6d` is not a second estimate
+    let p = parse_str("# T\n\n- [ ] Build  3w  owner: Bo  effort: 6d  ^b\n- [ ] Ship  owner: Henrik Osei  ^id\n");
+    assert!(!codes(&p).contains(&"E-SYNTAX"));
+    assert_eq!(p.nodes[0].keys["owner"][0].text, "Bo");
+    assert_eq!(p.nodes[0].duration.as_ref().unwrap().text, "3w");
+    assert_eq!(p.nodes[0].id.as_deref(), Some("b"));
+    assert_eq!(p.nodes[1].keys["owner"][0].text, "Henrik Osei");
+    assert_eq!(p.nodes[1].id.as_deref(), Some("id"));
+}
+
+#[test]
+fn vertical_owner_bullet_runs_to_end_of_line() {
+    let p = parse_str("# T\n\n- [ ] A\n  - owner: Ann  effort: 6d\n");
+    assert_eq!(p.nodes[0].keys["owner"][0].text, "Ann  effort: 6d");
+    assert!(p.nodes[0].duration.is_none());
+}
+
+#[test]
+fn unknown_key_after_a_suffix_part_is_skipped_with_w_keylike() {
+    let p = parse_str("# T\n\n- [ ] Build  3w  effort: 6d  ^b\n- [ ] Note  2w  note: some words  ^c\n- [ ] Dated  2w  tier: 2027-01-01  ^d\n");
+    assert!(!codes(&p).contains(&"E-SYNTAX"));
+    assert_eq!(p.nodes[0].title, "Build");
+    assert_eq!(p.nodes[0].duration.as_ref().unwrap().text, "3w");
+    assert!(p.nodes[0].keys.is_empty());
+    assert_eq!(p.nodes[0].id.as_deref(), Some("b"));
+    assert!(has(&p, "W-KEYLIKE", "unknown key `effort:` is ignored"));
+    // the multi-word value is skipped up to the separator
+    assert_eq!(p.nodes[1].title, "Note");
+    assert_eq!(p.nodes[1].duration.as_ref().unwrap().text, "2w");
+    assert!(p.nodes[1].keys.is_empty());
+    assert!(has(&p, "W-KEYLIKE", "unknown key `note:`"));
+    // a date value is not a range or a key
+    assert_eq!(p.nodes[2].title, "Dated");
+    assert!(p.nodes[2].range.is_none() && p.nodes[2].keys.is_empty());
+    assert!(has(&p, "W-KEYLIKE", "unknown key `tier:`"));
+}
+
+#[test]
+fn unknown_key_inside_the_title_is_title_text() {
+    let p = parse_str("# T\n\n- [ ] Plan effort: review  2w\n- [ ] Ship effort: 6d\n");
+    assert_eq!(p.nodes[0].title, "Plan effort: review");
+    assert_eq!(p.nodes[0].duration.as_ref().unwrap().text, "2w");
+    assert_eq!(p.nodes[1].title, "Ship effort:");
+    assert_eq!(p.nodes[1].duration.as_ref().unwrap().text, "6d");
+    assert!(!codes(&p).contains(&"W-KEYLIKE"));
+}
+
+#[test]
+fn fmt_keeps_a_line_with_a_skipped_key() {
+    let src = "# T\n\n- [ ] Build  3w  effort: 6d  ^b\n";
+    assert_eq!(pmd_core::fmt::format(src), src);
+}

@@ -283,6 +283,10 @@ impl<'a> Ctx<'a> {
             start = mn(start, kid_start);
         } else if let Some(dur) = &node.duration {
             ed = Driver::new("estimate");
+            if dur.weekdays {
+                // a `d` estimate starts on a weekday: a weekend start is the Monday after (D71)
+                start = start.map(crate::date::next_weekday);
+            }
             end = start.map(|s| dur.end_from(s));
             if end.is_none() && node.kind == NodeKind::Milestone {
                 // a done milestone with an estimate: its date stands

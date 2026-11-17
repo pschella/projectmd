@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Pre",
+      "id": "p",
+      "start": "2027-03-01",
+      "end": "2027-03-05"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Five",
+      "start": "2027-03-08",
+      "end": "2027-03-12"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Week",
+      "id": "w",
+      "start": "2027-03-06",
+      "end": "2027-03-12"
+    },
+    {
+      "line": 8,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "After week",
+      "start": "2027-03-15",
+      "end": "2027-03-17"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

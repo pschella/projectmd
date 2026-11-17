@@ -28,7 +28,7 @@ adds just enough structure to answer "when?" and "what depends on what?":
 - **Every file is a project.** Its list items are tasks and milestones. A link to another file
   makes that file a sub-project, wherever it lives.
 - **Time is built in at every level.** You can use dates, rough dates (`2027-Q3`), durations
-  (`12w`) and dependencies (`after:`). A parent states what it needs (`by:`) and a child states
+  (`12w`) and dependencies (`after:`). Days (`3d`) are weekdays; weeks (`2w`) are calendar weeks. A parent states what it needs (`by:`) and a child states
   what it promises (`Commitment:`).
 - **It scales by locality.** Only declared dates cross file boundaries. Any view reads one file
   plus its direct links, whether the graph has 10 projects or 100,000.
@@ -74,7 +74,7 @@ expandable Gantt chart. Anyone can write others: the files are plain markdown an
 | [docs/DESIGN.md](docs/DESIGN.md) | Why it is designed this way: requirements, concepts, checks. |
 | [docs/VIEWER-CONTRACT.md](docs/VIEWER-CONTRACT.md) | How the reference viewer calls the parser (WebAssembly interface). |
 | [testdata/conformance/](testdata/conformance/README.md) | The conformance suite: golden cases and executable laws that any implementation must pass. |
-| [docs/schema/](docs/schema/) | JSON schemas for the tool outputs (`check`, `ready`, `board`, `why`, `changes`, `replan`, `project`). |
+| [docs/schema/](docs/schema/) | JSON schemas for the tool outputs (`check`, `ready`, `board`, `why`, `changes`, `replan`, `load`, `rows`, `project`). |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Parser scaling measurements. |
 | [examples/](examples/README.md) | Worked examples: a fictionalised crewed-lunar-landing programme (`examples/lunar/`), a company split across three stores (`examples/org/`) and a bakery fit-out (`examples/bakery/`). |
 
@@ -96,7 +96,8 @@ a sub-project to make it the top level.
 cd parser && cargo build --release
 ./target/release/pmd parse FILE          # print the parsed project as JSON
 ./target/release/pmd check FILE...       # validate; --deep walks all linked files, --strict fails on warnings
-./target/release/pmd schedule FILE...    # forecast dates and conflicts
+./target/release/pmd schedule FILE...    # forecast dates and conflicts; --rows: one JSON line per item, for other tools
+./target/release/pmd load FILE...        # where an owner has more than one item at once (informative)
 ./target/release/pmd tree FILE...        # outline with contract states (--depth N)
 ./target/release/pmd ready FILE...       # the queue: DO, DECIDE, ANSWER, DELIVER, FIX
 ./target/release/pmd board FILE...       # the board: waiting, ready, doing, done, flow forecast
@@ -106,7 +107,7 @@ cd parser && cargo build --release
 ./target/release/pmd fmt FILE...         # canonical form (--check only reports)
 ```
 
-`check`, `schedule`, `ready`, `board`, `why`, `changes` and `replan` accept `--json`; the output is defined by the schemas in [docs/schema/](docs/schema/).
+`check`, `schedule`, `load`, `ready`, `board`, `why`, `changes` and `replan` accept `--json`; the output is defined by the schemas in [docs/schema/](docs/schema/).
 `--today D` (or `PMD_TODAY`) fixes the date for reproducible output.
 
 Rebuild the viewer's WebAssembly module with `parser/build-wasm.sh`.

@@ -11,7 +11,7 @@ const $ = (id) => document.getElementById(id);
 const els = {};
 ['ptitle', 'pmeta', 'crumbs', 'openform', 'rootinput', 'wbs', 'zout', 'zin', 'zfit', 'ztoday', 'zoomseg', 'banner', 'main', 'left', 'lbody', 'lspacer',
   'split', 'rhead', 'rhinner', 'rbody', 'canvas', 'gridlines', 'today', 'trows', 'deps', 'detail', 'tip', 'mdview', 'mdtitle', 'mdraw', 'mdopen', 'mdclose', 'mdbody', 'tsl', 'tplay', 'tdate', 'treset',
-  'lhead', 'attn', 'fstate', 'qsearch', 'ownerf', 'hidedone', 'msonly', 'copylink', 'printbtn', 'phTitle', 'phMeta', 'levelseg', 'viewseg', 'board'].forEach((i) => (els[i] = $(i)));
+  'lhead', 'attn', 'fstate', 'qsearch', 'ownerf', 'hidedone', 'msonly', 'copylink', 'printbtn', 'phTitle', 'phMeta', 'levelseg', 'viewseg', 'board', 'cpbtn', 'lgbtn', 'lgpop'].forEach((i) => (els[i] = $(i)));
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -88,6 +88,8 @@ const S = {
   deps: [],
   tRoot: null, tMin: null, tMax: null,  // time slider range (root key it was computed for, day numbers)
   chainIds: null,           // item ids of the driver chain of the selection (null: no highlight)
+  cp: false, cpIds: null,   // critical path toggle (URL: cp=1) and the item ids on it (null: off)
+  ovl: new Map(),           // overlap: item id -> items of the same owner it overlaps in time
   q: '', owner: '', hideDone: false, ms: false, chip: null,  // filters (URL: q, owner, hide_done, ms, attn)
   cols: null,               // optional columns shown: {slack, next} (localStorage pmd.cols)
   allRows: [],              // every flattened row before filtering (counts, owner list)
@@ -99,8 +101,9 @@ const S = {
   const QP = new URLSearchParams(location.search);
   S.q = (QP.get('q') || '').trim(); S.owner = QP.get('owner') || ''; S.hideDone = QP.get('hide_done') === '1'; S.ms = QP.get('ms') === '1';
   const at = QP.get('attn');
-  S.chip = ['conflict', 'disputed', 'overdue', 'decide', 'due14', 'late', 'tight'].includes(at) ? at : null;
+  S.chip = ['conflict', 'disputed', 'overdue', 'decide', 'due14', 'late', 'tight', 'overlap'].includes(at) ? at : null;
   S.view = QP.get('view') === 'board' ? 'board' : 'gantt';
+  S.cp = QP.get('cp') === '1';
   S.cols = loadCols();
 }
 
@@ -513,7 +516,10 @@ function render() {
     }
   });
   h += `<div class="todaytag" style="left:${dx(TODAY + 0.5)}px" title="Today ${TODAY_ISO}"></div>`;
-  els.rhinner.innerHTML = h; els.gridlines.innerHTML = g;
+  // weekend bands (Saturday, Sunday) once a day is 6 px wide or more; they sit behind the grid lines
+  let wk = '';
+  if (S.ppd >= 6) for (let d = Math.floor(d0); d <= d1; d++) { const wd = (((d + 4) % 7) + 7) % 7; if (wd === 0 || wd === 6) wk += `<div class="wk" style="left:${dx(d)}px;width:${S.ppd}px"></div>`; }
+  els.rhinner.innerHTML = h; els.gridlines.innerHTML = wk + g;
   els.today.style.left = dx(TODAY + 0.5) - 1 + 'px';
   const zl = zoomLevel();
   for (const b of els.zoomseg.children) b.classList.toggle('on', b.dataset.z === zl);
@@ -532,7 +538,8 @@ function render() {
     const it = row.it;
     const sel = S.selId === it.id ? ' sel' : '';
     const stc = it.kind === 'heading' || it.kind === 'project' ? '' : ' ' + stCls(it);
-    const cls = `k-${it.kind}${stc}${row.conflict ? ' conflict' : ''}${sel}${odd}${hov}`;
+    const cpm = S.cpIds ? (S.cpIds.has(it.id) ? ' cp' : ' cpdim') : '';   // critical path: on it, or dimmed
+    const cls = `k-${it.kind}${stc}${row.conflict ? ' conflict' : ''}${sel}${odd}${hov}${cpm}`;
     // expand / collapse
     let tog = '<span class="tog none"></span>';
     if (isExpandable(row)) {
@@ -558,7 +565,7 @@ function render() {
     L += `<div class="lrow ${cls}" ${aria} data-i="${i}" style="top:${i * RH}px"><div class="name" style="padding-left:${row.depth * 16 + 6}px">${tog}${ico}<span class="t" title="${esc(titleOf(it))}">${num}${labelHtml(it)}</span>${pill}${prog}${flag}${focus}</div>` +
       `<div class="d">${esc(fmt(row.s))}</div><div class="d fin">${esc(fmt(row.e))}</div><div>${durText(row)}</div><div title="${esc(ownerText(row))}">${esc(ownerText(row))}</div>${slk}${nxt}</div>`;
     const ch = S.chainIds ? (S.chainIds.has(it.id) ? ' inchain' : ' dimmed') : '';
-    T += `<div class="trow${sel}${odd}${hov}${ch}" data-i="${i}" style="top:${i * RH}px">${bars(row)}</div>`;
+    T += `<div class="trow${sel}${odd}${hov}${ch}${cpm}" data-i="${i}" style="top:${i * RH}px">${bars(row)}</div>`;
   }
   els.lspacer.innerHTML = L; els.trows.innerHTML = T;
   renderDeps(r0, r1);
@@ -805,6 +812,8 @@ function showDetail(row) {
     if (contractOf(it)) add('Whose move', esc(whoseText(it)));
     add('Tags', esc((n.tags || []).map((t) => '#' + t).join(' ')));
     add('Owner', vals(k.owner) || esc(ownerText(row)));
+    const ov = S.ovl.get(it.id);
+    if (ov) add('Overlaps with', esc(ov.slice(0, 3).map((x) => titleOf(x)).join(', ')) + (ov.length > 3 ? ` +${ov.length - 3} more` : ''));
     const inKeys = ['after', 'by', 'owner'];
     for (const key of Object.keys(k)) if (!inKeys.includes(key)) add(key, vals(k[key]));
     add('ID', n.id ? '^' + esc(n.id) : '');
@@ -941,6 +950,7 @@ const ATTN = [
   ['due14', 'Due in 14 days', (it) => isDue14(it)],
   ['late', 'Late deliveries', (it) => !!lateOf({ it })],
   ['tight', 'Tight', (it) => isTight(it)],
+  ['overlap', 'Overlap', (it) => S.ovl.has(it.id)],
 ];
 const filtering = () => !!(S.q || S.owner || S.hideDone || S.ms || S.chip);
 // Visits every item of every loaded project (counts do not depend on what is expanded).
@@ -960,6 +970,7 @@ function updateAttn() {
     if (!b) continue;
     b.querySelector('b').textContent = String(cnt[a[0]]);
     b.classList.toggle('zero', cnt[a[0]] === 0);
+    if (a[0] === 'overlap') b.hidden = cnt[a[0]] === 0 && S.chip !== 'overlap';   // hidden when there is nothing to show
     b.classList.toggle('on', S.chip === a[0]);
     b.setAttribute('aria-pressed', String(S.chip === a[0]));
   }
@@ -971,6 +982,83 @@ function updateFstate() {
   if (!els.fstate) return;
   const count = (rows) => rows.filter((r) => !r.loading && r.depth > 0).length;
   els.fstate.textContent = filtering() ? `Showing ${count(S.rows)} of ${count(S.allRows)} rows` : '';
+}
+
+// ---------- overlap: open tasks of one owner that overlap in time ----------
+// Owner: the item's owner:, else its nearest ancestor's, else the file's Owner.
+function ownerNameOf(it) {
+  const nm = (o) => (o ? String(o.name || o.text || '').replace(/^@/, '') : '');
+  for (let p = it; p && p.node; p = p.parent) { const o = nm(p.node.keys && p.node.keys.owner && p.node.keys.owner[0]); if (o) return o; }
+  return nm(it.entry.proj.owner);
+}
+// Item id -> the items it overlaps. Counted: open leaf tasks with a forecast start and end lasting more than one day.
+function computeOverlaps() {
+  const groups = new Map(), out = new Map();
+  loadedItems((it) => {
+    const n = it.node, f = (n && n.forecast) || {};
+    if (!n || n.kind !== 'task' || !isOpenIt(it) || childItemsOf(it).length) return;
+    const s = toDay(f.start), e = toDay(f.end);
+    if (s == null || e == null || e - s < 1) return;
+    const o = ownerNameOf(it);
+    if (!o) return;
+    if (!groups.has(o)) groups.set(o, []);
+    groups.get(o).push({ it, s, e });
+  });
+  for (const list of groups.values()) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (a.s > b.e || b.s > a.e) continue;
+      if (!out.has(a.it.id)) out.set(a.it.id, []);
+      if (!out.has(b.it.id)) out.set(b.it.id, []);
+      out.get(a.it.id).push(b.it); out.get(b.it.id).push(a.it);
+    }
+  }
+  return out;
+}
+
+// ---------- critical path: the driver chain back from the project's end ----------
+const linkKey = (it) => it.target || (it.node && it.node.link_resolved ? tryKey(it.node.link_resolved.split('#')[0]) : null);
+// The item at the project's end: its forecast end is the project's, the last one in file order. When none ends
+// on that day (the project end can come from its Commitment), the item that finishes last, again last in file order.
+function projectEndItem(en) {
+  const end = toDay((en.proj.forecast || {}).end);
+  if (!en.root) return null;
+  let exact = null, latest = null, latestEnd = null;
+  const st = [...en.root.children];
+  while (st.length) {
+    const it = st.pop();
+    const e = toDay(((it.node && it.node.forecast) || {}).end);
+    if (e != null) {
+      if (e === end && (!exact || it.node.line >= exact.node.line)) exact = it;
+      if (latestEnd == null || e > latestEnd || (e === latestEnd && it.node.line >= latest.node.line)) { latest = it; latestEnd = e; }
+    }
+    st.push(...it.children);
+  }
+  return exact || latest;
+}
+// A chain that enters a loaded file through a link: the milestone it names (#id), else that project's end.
+function linkedStart(lk) {
+  const k = linkKey(lk), en = k && S.projects.get(k);
+  if (!en || en.status !== 'ok') return null;
+  const tgt = (lk.node.link && lk.node.link.target) || '';
+  const h = (lk.node.link_resolved || tgt).split('#')[1] || tgt.split('#')[1];
+  return (h && S.idItem.get(k + '#' + h)) || projectEndItem(en);
+}
+// Ids of the items on the critical path (null when the project has no end). Follows each driver as the why-chain does.
+function criticalIds() {
+  const root = S.projects.get(S.rootKey);
+  if (!root || root.status !== 'ok') return null;
+  const ids = new Set();
+  let cur = projectEndItem(root);
+  while (cur && !ids.has(cur.id)) {
+    ids.add(cur.id);
+    const step = driverStep(cur);
+    const next = step && step.drv.line ? itemAtLine(cur.entry.root, step.drv.line) : null;
+    if (!next) break;
+    if (isLinkIt(next)) { ids.add(next.id); cur = linkedStart(next); continue; }
+    cur = next;
+  }
+  return ids;
 }
 
 // ---------- filters ----------
@@ -1010,6 +1098,7 @@ function syncFilterUrl() {
     const put = (k, v) => (v ? u.searchParams.set(k, v) : u.searchParams.delete(k));
     put('q', S.q); put('owner', S.owner); put('hide_done', S.hideDone ? '1' : ''); put('ms', S.ms ? '1' : ''); put('attn', S.chip || '');
     put('view', S.view === 'board' ? 'board' : '');
+    put('cp', S.cp ? '1' : '');
     history.replaceState(history.state, '', u.href);
   } catch (e) { /* some embedding contexts refuse replaceState */ }
 }
@@ -1170,6 +1259,17 @@ els.copylink.addEventListener('click', async () => {
   setTimeout(() => { btn.textContent = old; }, 1500);
 });
 els.printbtn.addEventListener('click', () => { updateAttn(); window.print(); });
+// critical path toggle (key c, URL cp=1)
+function toggleCp() { S.cp = !S.cp; syncFilterUrl(); rebuild(); }
+els.cpbtn.addEventListener('click', toggleCp);
+// legend popover: closes on Escape or an outside click
+function openLegend(open) {
+  els.lgpop.hidden = !open;
+  els.lgbtn.setAttribute('aria-expanded', String(open));
+  if (open) { const r = els.lgbtn.getBoundingClientRect(); els.lgpop.style.top = r.bottom + 6 + 'px'; els.lgpop.style.right = Math.max(8, innerWidth - r.right) + 'px'; }
+}
+els.lgbtn.addEventListener('click', () => openLegend(els.lgpop.hidden));
+document.addEventListener('click', (e) => { if (!els.lgpop.hidden && !e.target.closest('#lgpop, #lgbtn')) openLegend(false); });
 els.viewseg.addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
 els.board.addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) openCard(c.dataset.key, +c.dataset.line); });
 els.board.addEventListener('keydown', (e) => {
@@ -1296,6 +1396,10 @@ function openCard(key, line) {
 
 // ---------- actions ----------
 function rebuild() {
+  S.ovl = computeOverlaps();   // before flatten: the Overlap filter reads it
+  S.cpIds = S.cp ? criticalIds() : null;
+  els.cpbtn.classList.toggle('on', S.cp);
+  els.cpbtn.setAttribute('aria-pressed', String(S.cp));
   flatten();
   if (S.rows.length) {
     if (S.rawMin == null) { S.rawMin = TODAY; S.rawMax = TODAY; }
@@ -1492,8 +1596,10 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.target.closest('input, textarea, select')) return;
   if (!els.mdview.hidden) { if (e.key === 'Escape') closeMd(); return; }
-  if (e.key === 'Escape') { hideDetail(); return; }
+  if (e.key === 'Escape') { if (!els.lgpop.hidden) { openLegend(false); return; } hideDetail(); return; }
   if (!e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'g' || e.key === 'b')) { e.preventDefault(); setView(e.key === 'b' ? 'board' : 'gantt'); return; }
+  if (!e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'c' && S.view === 'gantt') { e.preventDefault(); toggleCp(); return; }
+  if (!e.altKey && !e.ctrlKey && !e.metaKey && e.key === '?') { e.preventDefault(); openLegend(els.lgpop.hidden); return; }
   if (S.view === 'board') return;   // the table's arrow keys do not apply to the board
   if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest('button, a')) return;
   const rows = S.rows;

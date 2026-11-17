@@ -198,6 +198,11 @@ fn try_email(text: &str, p: usize) -> Option<Atom> {
     Some(Atom::simple(AK::Email, p, i + 1))
 }
 
+/// Is there a two-space separator (FORMAT §3) between atom `j - 1` and atom `j`?
+fn gap_before(text: &str, atoms: &[Atom], j: usize) -> bool {
+    text[atoms[j - 1].e..atoms[j].s].contains("  ")
+}
+
 fn atomise(text: &str, refdefs: &BTreeMap<String, RefDef>, out: &mut Vec<Atom>) {
     out.clear();
     let b = text.as_bytes();
@@ -371,6 +376,8 @@ struct Ext {
     suffix: Suffix,
     /// The title ends in a date-shaped word (not a declared date: W-KEYLIKE).
     trail_date: bool,
+    /// An unknown `key: value` in the suffix was skipped (W-KEYLIKE); fmt leaves the line alone.
+    skipped: bool,
 }
 
 enum Slot {
@@ -638,6 +645,45 @@ impl<'a> P<'a> {
         }
     }
 
+    /// `name:` with a key-shaped name that is not a known key (FORMAT §3).
+    fn is_unknown_key(&self, text: &str, a: &Atom) -> bool {
+        if a.kind != AK::Word {
+            return false;
+        }
+        match text[a.s..a.e].strip_suffix(':') {
+            Some(name) => {
+                let b = name.as_bytes();
+                !b.is_empty() && b[0].is_ascii_alphabetic() && b.iter().all(|c| c.is_ascii_alphanumeric() || *c == b'-') && !self.is_known_name(name)
+            }
+            None => false,
+        }
+    }
+
+    /// Can atom `i` start a suffix part: a tag, id, estimate, range, `..` or a known key?
+    fn is_part_start(&self, text: &str, atoms: &[Atom], i: usize) -> bool {
+        let a = &atoms[i];
+        if a.kind != AK::Word {
+            return false;
+        }
+        let w = &text[a.s..a.e];
+        w == ".." || is_tag(w) || is_id(w) || is_duration(w).is_some() || split_range_word(w).is_some() || self.atom_key(text, a).is_some()
+    }
+
+    /// The unknown key that a skip (R2) would drop: the nearest one left of `end` in the same
+    /// two-space group, when it lies after the first suffix part `first`.
+    fn skippable_key(&self, text: &str, atoms: &[Atom], first: usize, end: usize) -> Option<usize> {
+        let mut k = end - 1;
+        loop {
+            if self.is_unknown_key(text, &atoms[k]) {
+                return (k > first).then_some(k);
+            }
+            if self.atom_key(text, &atoms[k]).is_some() || k == 0 || gap_before(text, atoms, k) {
+                return None;
+            }
+            k -= 1;
+        }
+    }
+
     // ---- suffix extraction (§4.3) -------------------------------------------------------------
 
     fn extract(&mut self, text: &'a str, line: u32) -> Ext {
@@ -645,17 +691,24 @@ impl<'a> P<'a> {
         atomise(text, &self.refdefs, &mut atoms);
         let n = atoms.len();
         let mut end = n;
-        let mut elems: Vec<Elem<'a>> = Vec::new();
+        // Consumed parts, rightmost first, with the index of their first atom.
+        let mut elems: Vec<(usize, Elem<'a>)> = Vec::new();
+        let mut skipped = false;
+        let first = (1..n).find(|&i| self.is_part_start(text, &atoms, i)).unwrap_or(n);
         let word = |a: &Atom| -> &'a str { &text[a.s..a.e] };
         while end > 1 {
             let a = atoms[end - 1];
             // 3. key + value
             let mut found: Option<(usize, Value, String)> = None;
-            // R1a: `owner:` takes any text up to the next suffix token (scan left from the end).
+            // R1a: `owner:` takes any text up to the next suffix token (scan left from the end),
+            // and never past a two-space separator (FORMAT §3).
             if end >= 3 && !self.is_suffix_token(text, &atoms, end - 1) {
                 let mut k = end - 2;
                 while k >= 1 {
                     if self.atom_key(text, &atoms[k]).is_some_and(|n| n.eq_ignore_ascii_case("owner")) {
+                        if (k + 2..end).any(|j| gap_before(text, &atoms, j)) {
+                            break;
+                        }
                         let v = self.value_from_atoms(text, &atoms[k + 1..end]).filter(|v| matches!(v.kind, ValueKind::Person | ValueKind::Word)).unwrap_or_else(|| Value {
                             kind: ValueKind::Word,
                             text: text[atoms[k + 1].s..atoms[end - 1].e].to_string(),
@@ -708,12 +761,9 @@ impl<'a> P<'a> {
                 }
             }
             if let Some((k, v, l)) = found {
-                if k >= 1 {
-                    self.value_diag(&v, line, &l);
-                    elems.push(Elem::Key(l, v));
-                    end = k;
-                    continue;
-                }
+                elems.push((k, Elem::Key(l, v)));
+                end = k;
+                continue;
             }
             // 4. range
             if end >= 4
@@ -723,7 +773,7 @@ impl<'a> P<'a> {
                 let (x, y) = (word(&atoms[end - 3]), word(&atoms[end - 1]));
                 if range_of(x, y) != RangeParse::NotRange {
                     if let Some(r) = self.range_expr(x, y, line) {
-                        elems.push(Elem::Range(r));
+                        elems.push((end - 3, Elem::Range(r)));
                     }
                     end -= 3;
                     continue;
@@ -733,19 +783,19 @@ impl<'a> P<'a> {
                 let w = word(&a);
                 if let Some((x, y)) = split_range_word(w) {
                     if let Some(r) = self.range_expr(x, y, line) {
-                        elems.push(Elem::Range(r));
+                        elems.push((end - 1, Elem::Range(r)));
                     }
                     end -= 1;
                     continue;
                 }
                 // 5. bare tokens
                 if is_tag(w) {
-                    elems.push(Elem::Tag(&w[1..]));
+                    elems.push((end - 1, Elem::Tag(&w[1..])));
                     end -= 1;
                     continue;
                 }
                 if is_id(w) {
-                    elems.push(Elem::Id(&w[1..]));
+                    elems.push((end - 1, Elem::Id(&w[1..])));
                     end -= 1;
                     continue;
                 }
@@ -755,10 +805,29 @@ impl<'a> P<'a> {
                         'w' => nn.saturating_mul(7),
                         _ => nn.saturating_mul(30),
                     };
-                    elems.push(Elem::Dur(Duration { n: nn, unit: u, days, text: w.to_string() }));
+                    elems.push((end - 1, Elem::Dur(Duration { n: nn, unit: u, days, weekdays: u == 'd', text: w.to_string() })));
                     end -= 1;
                     continue;
                 }
+            }
+            // R2: an unknown `key: value` after the first suffix part is not title text. It and its
+            // value (up to the next two-space separator) are skipped, with W-KEYLIKE.
+            if let Some(k) = self.skippable_key(text, &atoms, first, end) {
+                // the value atoms are [k + 1, j); every consumed part starting before j is part of it
+                let mut j = k + 1;
+                if j < n && !gap_before(text, &atoms, j) {
+                    j += 1;
+                    while j < n && !gap_before(text, &atoms, j) {
+                        j += 1;
+                    }
+                }
+                while elems.last().is_some_and(|(s, _)| *s < j) {
+                    elems.pop();
+                }
+                self.diag(Severity::W, "W-KEYLIKE", line, format!("unknown key `{}:` is ignored; use a `#tag` for data other tools read", &text[atoms[k].s..atoms[k].e - 1]));
+                skipped = true;
+                end = k;
+                continue;
             }
             break;
         }
@@ -773,9 +842,12 @@ impl<'a> P<'a> {
         let (ts, te) = if end == 0 { (0, 0) } else { (atoms[0].s, atoms[end - 1].e) };
         let single_link = if end == 1 && atoms[0].is_link() { Some(atoms[0]) } else { None };
         let mut suffix = Suffix::default();
-        for el in elems.into_iter().rev() {
+        for (_, el) in elems.into_iter().rev() {
             match el {
-                Elem::Key(l, v) => self.add_key(&mut suffix.keys, l, v, line),
+                Elem::Key(l, v) => {
+                    self.value_diag(&v, line, &l);
+                    self.add_key(&mut suffix.keys, l, v, line)
+                }
                 Elem::Range(r) => {
                     if suffix.range.is_some() {
                         self.diag(Severity::E, "E-SYNTAX", line, "more than one range");
@@ -801,7 +873,7 @@ impl<'a> P<'a> {
                 }
             }
         }
-        let ext = Ext { ts, te, nt: end, single_link, suffix, trail_date };
+        let ext = Ext { ts, te, nt: end, single_link, suffix, trail_date, skipped };
         self.atoms = atoms;
         ext
     }
@@ -1502,6 +1574,8 @@ pub(crate) struct ItemSplit {
     pub suffix: Suffix,
     /// The parser reports an error for this item; the formatter then leaves its text alone.
     pub has_error: bool,
+    /// An unknown key in the suffix was skipped: the formatter leaves the line alone.
+    pub skipped: bool,
 }
 
 /// Split a list item body into checkbox, leading date, title and suffix. `None` when the body is
@@ -1540,5 +1614,5 @@ pub(crate) fn split_item(body: &str, refdefs: &BTreeMap<String, RefDef>) -> Opti
     let ext = p.extract(after, 0);
     let has_error = p.diags.iter().any(|d| d.is_error()) || ext.nt == 0;
     let title = after[ext.ts..ext.te].to_string();
-    Some(ItemSplit { checkbox, lead: lead_text, title, suffix: ext.suffix, has_error })
+    Some(ItemSplit { checkbox, lead: lead_text, title, suffix: ext.suffix, has_error, skipped: ext.skipped })
 }

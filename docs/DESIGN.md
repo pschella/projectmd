@@ -39,7 +39,7 @@ teams, stores and companies.
 |---|---|
 | R1 | **Plain text people and AI agents both write.** Readable without tools; editable by any editor or agent; diffs stay small. |
 | R2 | **Every file is a project.** A todo list is already a valid plan; there is no separate "project definition". |
-| R3 | **Time at every level.** Dates, rough dates, durations and dependencies, in real calendar time (no story points). |
+| R3 | **Time at every level.** Dates, rough dates, durations and dependencies, in calendar time, or weekdays for `d` (no story points). |
 | R4 | **Mixed scheduling.** Some dates are promises; most are estimates. Tools forecast the rest and flag conflicts. |
 | R5 | **Delegation with accountability.** A level asks for deliverables by dates; the level below promises dates and is accountable for keeping them, or for saying it cannot. Negotiation is normal. |
 | R6 | **Any storage, any tool.** Plans may live on disk, in git, on a shared drive, in an object store, a database or a supplier's portal; each level may use its own tools. |
@@ -332,9 +332,8 @@ tests (input files to expected JSON) and JSON schemas for tool output.
    instance; a sub-project per instance is the structural answer today. Is a series form ever worth it?
 4. **The "why" without version history.** Reasons for a moved promise go in item descriptions and
    commit messages. A description records the latest reason; stores without history lose the earlier ones.
-5. **Working time vs calendar time.** Durations are calendar time (`1w` = 7 days). Should a
-   duration be able to mean working time, and through what extension mechanism, without calendars
-   in the core format?
+5. **Working time vs calendar time.** Decided (D71): `d` counts weekdays, Monday to Friday, with no
+   holidays or calendars; `w` and `m` stay calendar time. Who needs calendar time uses weeks, a range or dates.
 6. **Conditional plans.** A plan that depends on a decision (if the gate passes, scope A; else
    scope B) is written today as two items, one of which is cancelled `[-]` once the gate decides.
    Is a conditional form worth its complexity?

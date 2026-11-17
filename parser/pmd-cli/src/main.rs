@@ -21,12 +21,20 @@ impl Loader {
 
     /// Like `load`, but stop `max` links away from root (1 = root and its direct links).
     fn load_depth(root: &str, max: usize) -> Loader {
-        let mut ld = Loader { graph: Some(Graph::new(root)), ..Default::default() };
-        let root = normalize(root);
+        Loader::load_roots(&[root.to_string()], max)
+    }
+
+    /// Like `load_depth`, from several roots at once (one graph; the roots come first in load order).
+    fn load_roots(roots: &[String], max: usize) -> Loader {
+        let mut ld = Loader { graph: Some(Graph::new(&roots[0])), ..Default::default() };
         let mut seen: HashSet<String> = HashSet::new();
         let mut q: VecDeque<(String, bool, usize)> = VecDeque::new();
-        q.push_back((root.clone(), true, 0));
-        seen.insert(root);
+        for root in roots {
+            let root = normalize(root);
+            if seen.insert(root.clone()) {
+                q.push_back((root, true, 0));
+            }
+        }
         while let Some((path, required, depth)) = q.pop_front() {
             let bytes = match fs::read(&path) {
                 Ok(b) => b,
@@ -66,13 +74,17 @@ fn all_diags(g: &Graph) -> Vec<Diagnostic> {
     v
 }
 
-const USAGE: &str = "usage: pmd parse FILE | check FILE... [--deep] [--strict] [--today D] [--json] | schedule FILE... [--today D] [--json] | ready FILE... [--deep] [--owner NAME] [--today D] [--json] | board FILE... [--deep] [--owner NAME] [--today D] [--json] | why FILE [^id] [--deep] [--today D] [--json] | changes OLD NEW [--json] | replan FILE [--write] [--today D] [--json] | fmt FILE... [--check] | tree FILE... [--depth N] [--today D]";
+const USAGE: &str = "usage: pmd parse FILE | check FILE... [--deep] [--strict] [--today D] [--json] | schedule FILE... [--deep] [--rows] [--today D] [--json] | load FILE... [--deep] [--owner NAME] [--today D] [--json] | ready FILE... [--deep] [--owner NAME] [--today D] [--json] | board FILE... [--deep] [--owner NAME] [--today D] [--json] | why FILE [^id] [--deep] [--today D] [--json] | changes OLD NEW [--json] | replan FILE [--write] [--today D] [--json] | fmt FILE... [--check] | tree FILE... [--depth N] [--today D]";
 
 const HELP: &str = "\
 commands:
   parse FILE       print the parsed project as JSON
   check FILE...    report diagnostics (--deep: whole link graph, --strict: warnings fail, --json)
-  schedule FILE... print the forecast schedule (--json)
+  schedule FILE... print the forecast schedule (--json); --rows: one JSON line per planning item of
+                   every file read (--deep: the whole link graph), each file scheduled once
+  load FILE...     how much each owner has at once: the weeks (ISO, Monday to Sunday) in which an owner
+                   has two or more open leaf items with a span running (points are not load); from the
+                   week of today to the latest end (--deep, --owner NAME, --json)
   ready FILE...    the queue: do (work that can start today), decide (disputed link: accept, re-plan or
                    talk), fix (unreadable link); with --deep or several FILES also answer (a child has
                    not answered `by:`) and deliver (overdue), listed under the child's Owner
@@ -144,7 +156,7 @@ fn main() {
         } else if matches!(a.as_str(), "--today" | "--depth" | "--owner") {
             opts.push(a.clone());
             opts.extend(it.next().cloned());
-        } else if matches!(a.as_str(), "--deep" | "--strict" | "--json" | "--check" | "--write") {
+        } else if matches!(a.as_str(), "--deep" | "--strict" | "--json" | "--check" | "--write" | "--rows") {
             opts.push(a.clone());
         } else if a.starts_with('-') && a.len() > 1 {
             usage();
@@ -152,7 +164,7 @@ fn main() {
             files.push(a.clone());
         }
     }
-    if files.is_empty() || (files.len() > 1 && !matches!(args[0].as_str(), "check" | "schedule" | "tree" | "fmt" | "ready" | "board" | "why" | "changes")) {
+    if files.is_empty() || (files.len() > 1 && !matches!(args[0].as_str(), "check" | "schedule" | "load" | "tree" | "fmt" | "ready" | "board" | "why" | "changes")) {
         usage();
     }
     if args[0] == "changes" && files.len() != 2 {
@@ -163,7 +175,9 @@ fn main() {
     match args[0].as_str() {
         "parse" => cmd_parse(file),
         "check" => multi(&|f| cmd_check(f, today_arg(&opts), has_flag(&opts, "--json"), has_flag(&opts, "--deep"), has_flag(&opts, "--strict"))),
+        "schedule" if has_flag(&opts, "--rows") => exit(cmd_rows(&files, today_arg(&opts), has_flag(&opts, "--deep"))),
         "schedule" => multi(&|f| cmd_schedule(f, today_arg(&opts), has_flag(&opts, "--json"))),
+        "load" => exit(cmd_load(&files, today_arg(&opts), opts.iter().position(|o| o == "--owner").and_then(|i| opts.get(i + 1)).map(|s| s.as_str()), has_flag(&opts, "--json"), has_flag(&opts, "--deep"))),
         "changes" => exit(cmd_changes(&files[0], &files[1], has_flag(&opts, "--json"))),
         "replan" => exit(cmd_replan(file, today_arg(&opts), has_flag(&opts, "--write"), has_flag(&opts, "--json"))),
         "ready" => cmd_ready(&files, today_arg(&opts), opts.iter().position(|o| o == "--owner").and_then(|i| opts.get(i + 1)).map(|s| s.as_str()), has_flag(&opts, "--json"), has_flag(&opts, "--deep")),
@@ -224,7 +238,7 @@ fn today_arg(rest: &[String]) -> Civil {
             i += 2;
         } else if matches!(rest[i].as_str(), "--depth" | "--owner") {
             i += 2;
-        } else if matches!(rest[i].as_str(), "--json" | "--deep" | "--strict" | "--write") {
+        } else if matches!(rest[i].as_str(), "--json" | "--deep" | "--strict" | "--write" | "--rows") {
             i += 1;
         } else {
             usage();
@@ -400,6 +414,67 @@ fn cmd_schedule(root: &str, today: Civil, json: bool) -> i32 {
         println!("estimates: \u{d7}{:.1} over {} finished items", r.median_ratio, r.n);
     }
     0
+}
+
+/// The planning rows of FILE... as `schedule --rows` and `load` read them: the graph as `ready` loads it
+/// (--deep: every file reachable through links, else only the named files), each file scheduled once, in
+/// place. Returns the rows, the number of files they come from, and 2 when a named file cannot be read.
+fn read_rows(files: &[String], today: Civil, deep: bool) -> (Vec<load::Row>, usize, i32) {
+    let mut ld = Loader::load_roots(files, if deep { usize::MAX } else { 1 });
+    let g = ld.graph.as_mut().unwrap();
+    let mut code = 0;
+    for f in files {
+        if g.get(f).is_none() {
+            eprintln!("pmd: cannot read {}", f);
+            code = 2;
+        }
+    }
+    let ifs = interfaces_for(g, today);
+    g.for_each_mut(|p| schedule(p, today, &ifs));
+    drop(ifs);
+    let roots: HashSet<String> = files.iter().map(|f| normalize(f)).collect();
+    let (mut rows, mut n) = (Vec::new(), 0);
+    for p in g.projects() {
+        if deep || roots.contains(&normalize(&p.path)) {
+            n += 1;
+            rows.extend(load::rows(p));
+        }
+    }
+    (rows, n, code)
+}
+
+/// `pmd schedule FILE... --rows [--deep]`: one JSON object per planning item, one per line.
+fn cmd_rows(files: &[String], today: Civil, deep: bool) -> i32 {
+    let (rows, _, code) = read_rows(files, today, deep);
+    for r in &rows {
+        println!("{}", load::row_json(r));
+    }
+    code
+}
+
+/// `pmd load FILE... [--deep] [--owner NAME] [--json]`: how many items each owner has at once, by ISO week.
+fn cmd_load(files: &[String], today: Civil, owner: Option<&str>, json: bool, deep: bool) -> i32 {
+    let (rows, k, code) = read_rows(files, today, deep);
+    let loads = load::load(&rows, today, owner);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&load::load_json(today, &loads)).unwrap());
+        return code;
+    }
+    let read = format!("{} file{} read", k, if k == 1 { "" } else { "s" });
+    let mut n = 0;
+    for o in &loads {
+        for w in o.weeks.iter().filter(|w| w.count >= 2) {
+            n += 1;
+            let items: Vec<String> = w.items.iter().map(|i| format!("{}:{} {}", i.file, i.line, i.title)).collect();
+            println!("{}  {}  {} at once: {}", o.owner, w.week, w.count, items.join("; "));
+        }
+    }
+    if n == 0 {
+        println!("no owner has more than one item at once ({})", read);
+    } else {
+        println!("{} owner-weeks with more than one item ({})", n, read);
+    }
+    code
 }
 
 /// `pmd ready FILE...`: the queue (D59): work that may start now plus the contract moves owed.

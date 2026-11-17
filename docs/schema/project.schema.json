@@ -138,6 +138,41 @@
         "keys": {
           "type": "object"
         },
+        "duration": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "n",
+            "unit",
+            "days",
+            "text"
+          ],
+          "properties": {
+            "n": {
+              "type": "integer"
+            },
+            "unit": {
+              "enum": [
+                "d",
+                "w",
+                "m"
+              ]
+            },
+            "days": {
+              "type": "integer",
+              "description": "The estimate in days (N for d; 7N for w; 30N as a rough size for m)."
+            },
+            "weekdays": {
+              "type": "boolean",
+              "description": "True for d: N counts weekdays, Monday to Friday (absent otherwise)."
+            },
+            "text": {
+              "type": "string"
+            }
+          }
+        },
         "forecast": {
           "$ref": "#/$defs/forecast"
         },

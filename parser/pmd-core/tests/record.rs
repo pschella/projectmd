@@ -28,14 +28,14 @@ fn all_kept_has_no_lateness() {
 
 #[test]
 fn estimate_record_is_the_median_ratio_of_finished_items() {
-    // ratios: A 4/4 = 1, B 8/4 = 2, C 5/2 = 2.5 -> median 2.0
+    // ratios in weekdays (D71): A 2/4 = 0.5, B 6/4 = 1.5, C 4/2 = 2.0 -> median 1.5
     let p = parse(
         "c.md",
         "# C\n\n- [x] Task A  4d  after: 2027-01-01  done: 2027-01-04  ^a\n- [x] Task B  4d  after: 2027-01-01  done: 2027-01-08  ^b\n- [x] Task C  2d  after: 2027-01-10  done: 2027-01-14  ^c\n- [ ] Task D  2d  after: 2027-01-10  ^d\n",
     );
     let r = estimate_record(&p).unwrap();
     assert_eq!(r.n, 3);
-    assert!((r.median_ratio - 2.0).abs() < 1e-9);
+    assert!((r.median_ratio - 1.5).abs() < 1e-9);
 }
 
 #[test]

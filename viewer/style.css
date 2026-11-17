@@ -3,7 +3,7 @@
   --accent: #2f6fe4; --accent-soft: rgba(47, 111, 228, .14);
   --done: #2e9b6a; --cancel: #9aa1ad; --red: #d6352f; --warn: #c97a00; --unk: #8b93a1;
   --sum: #2a303b; --today: #e5383b; --hover: rgba(47, 111, 228, .07); --stripe: rgba(20, 30, 50, .018);
-  --rh: 28px; --hh: 22px; --chain: #8b3fd9;
+  --rh: 28px; --hh: 22px; --chain: #8b3fd9; --cp: #d9731a; --wkend: rgba(20, 30, 50, .045);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color-scheme: light dark;
 }
@@ -12,7 +12,7 @@
     --bg: #14171d; --bg2: #1a1e26; --bg3: #252a34; --fg: #e5e8ef; --fg2: #98a1b3; --line: #262c37; --line2: #363e4c;
     --accent: #5b94f5; --accent-soft: rgba(91, 148, 245, .2);
     --done: #45b886; --cancel: #6f7787; --red: #ff6159; --warn: #e8a030; --unk: #8a93a4;
-    --sum: #c4cad6; --today: #ff5a5f; --hover: rgba(91, 148, 245, .09); --stripe: rgba(255, 255, 255, .02); --chain: #b58cff;
+    --sum: #c4cad6; --today: #ff5a5f; --hover: rgba(91, 148, 245, .09); --stripe: rgba(255, 255, 255, .02); --chain: #b58cff; --cp: #ffb04d; --wkend: rgba(255, 255, 255, .035);
   }
 }
 * { box-sizing: border-box; }
@@ -210,6 +210,31 @@ a { color: var(--accent); }
 #tplay[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dim { color: var(--fg2); }
 
+/* weekend bands (zoomed to 6 px per day or more), behind the grid lines */
+.wk { position: absolute; top: 0; bottom: 0; background: var(--wkend); pointer-events: none; }
+.achip[hidden], #lgpop[hidden] { display: none; }
+
+/* critical path: outlined bars and a marker in the title; other rows fade slightly */
+.trow.cpdim { opacity: .55; }
+.trow.cp :is(.bar, .sum, .sub, .ms, .unk) { outline: 2px solid var(--cp); outline-offset: 1px; }
+.lrow.cp .t::before { content: "\25B8\00a0"; color: var(--cp); font-weight: 700; }
+#cpbtn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* legend popover (button Legend, key ?) */
+.lgpop { position: fixed; z-index: 36; width: 340px; background: var(--bg); border: 1px solid var(--line2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); padding: 10px 14px 12px; }
+.lgpop h2 { margin: 0 0 6px; font-size: 13px; }
+.lgl { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 12px; color: var(--fg2); }
+.lgl li { display: flex; align-items: center; gap: 10px; }
+.lgl .sw { flex: none; min-width: 84px; width: max-content; display: inline-flex; align-items: center; gap: 4px; }
+.lg.wkend { background: var(--wkend); border: 1px solid var(--line2); }
+.lg.cpl { width: 16px; height: 10px; border-radius: 3px; background: var(--bg3); outline: 2px solid var(--cp); outline-offset: 1px; margin: 0 2px; }
+.lg.decl { position: relative; top: 0; width: 0; height: 0; margin: 0 4px; border: 4px solid transparent; border-top: 6px solid var(--red); border-bottom: 0; }
+.lg.decl::after { display: none; }
+.lg.late { position: relative; top: 0; width: 7px; height: 7px; margin: 0 4px; border: 1.5px solid var(--red); background: var(--bg); transform: rotate(45deg) scale(.9); }
+.lg.ms { margin: 0 6px; }
+.lg.bar.fc { width: 18px; }
+.lg.bar.conf { margin-left: 0; }
+
 /* driver chain: highlighted rows keep their bars; the rest of the chart fades */
 .trow.dimmed { opacity: .4; }
 .trow.inchain :is(.bar, .sum, .sub, .ms, .unk) { box-shadow: 0 0 0 2px var(--chain); }
@@ -278,7 +303,7 @@ select { background: var(--bg); border: 1px solid var(--line2); border-radius: 6
 .bfoot { margin-top: 8px; padding: 6px 10px; background: var(--bg2); border-radius: 6px; color: var(--fg2); font-size: 12px; display: grid; gap: 2px; }
 .board-note { color: var(--fg2); font-size: 12px; margin: 12px 0 0; }
 .lrow .pj { color: var(--fg2); }
-body.view-board #legend, body.view-board .achip, body.view-board #fstate, body.view-board .attn-h, body.view-board #colmenu, body.view-board #printbtn { display: none !important; }
+body.view-board #legend, body.view-board .achip, body.view-board #fstate, body.view-board .attn-h, body.view-board #colmenu, body.view-board #printbtn, body.view-board #lgbtn, body.view-board #cpbtn, body.view-board #lgpop { display: none !important; }
 body.view-board #attn { padding: 4px 14px; }
 @media (max-width: 760px) { .bcols { grid-template-columns: 1fr; } }
 
@@ -288,6 +313,9 @@ body.view-board #attn { padding: 4px 14px; }
   @page { size: A4 landscape; margin: 12mm; }
   body { display: block; height: auto; overflow: visible; font-size: 11px; background: #fff; color: #000; }
   #toolbar, #attn, #banner, #split, #detail, #legend, #mdview, #tip, #printbtn { display: none !important; }
+  /* the legend is printed only when it is open (the hidden attribute keeps it out otherwise) */
+  #lgpop { position: static; width: auto; box-shadow: none; margin: 0 0 8px; }
+  .wk { background: #eef0f3 !important; }
   #printhead { display: block; margin-bottom: 8px; }
   #printhead h1 { font-size: 16px; margin: 0 0 2px; }
   #printhead div { color: #333; }

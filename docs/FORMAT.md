@@ -106,7 +106,7 @@ Rules:
 The title is everything before the suffix, verbatim, and is never empty. From the end of the
 line, the parser consumes **bare tokens** (`#tag`, `^id`, an estimate `3d` `2w` `12m`, a range
 `a .. b`) and **known keys** (`key: value`), and stops at the first thing that is neither. Any order
-is accepted; `pmd fmt` writes the canonical order (§13). Unknown `word:` is title text.
+is accepted; `pmd fmt` writes the canonical order (§13). Unknown `word:` is title text, except after the first suffix part (§3.4 rule 6).
 
 | Line | Title | Suffix |
 |---|---|---|
@@ -120,7 +120,7 @@ A `` `code span` `` is never a token, so `` `after: ^x` `` stays in the title.
 
 | Key | Value | Repeatable | Meaning |
 |---|---|---|---|
-| `owner:` | free text up to the next suffix token: `Henrik Osei`, `Name <email>`, `@jan` | no | who does it; may differ from the file's `Owner:` |
+| `owner:` | free text up to the next suffix token or two-space separator: `Henrik Osei`, `Name <email>`, `@jan` | no | who does it; may differ from the file's `Owner:` |
 | `after:` | local `^id`, or a date | yes: all must finish | starts the day after that item ends; a date is the earliest start, inclusive |
 | `by:` | date, coarse date, or local `^id` of an item with a declared end | no | on a link line: what the parent asks of the child; inline: the declared end |
 | `done:` | date or coarse date or range | no | when a `[x]` item was completed; written by whoever ticks it; a coarse date or range counts as its end |
@@ -133,6 +133,11 @@ Rules:
    This holds when the key is the last word of the title.
 3. `done:` on an open item gets `W-KEYLIKE` ("tick the box").
 4. A key repeated where it may not be is `E-SYNTAX`.
+5. An inline `owner:` value ends at the next two spaces, so `owner: Bo  effort: 6d` gives owner `Bo`.
+   A vertical `- owner:` bullet runs to the end of its line (§3.5).
+6. Once a suffix part has been recognised, an unknown `word: value` is not title text. It and its
+   value (up to the next two spaces) are skipped, its value is never read as an estimate, date, id or
+   tag, and the line gets `W-KEYLIKE`. Before the first suffix part, `word:` stays title text.
 
 ### 3.5 Vertical properties
 
@@ -208,9 +213,9 @@ The property sub-bullets directly under the H1 title are the header:
   day of the span; as an end (`by:`, leading date, range end, `done:`) the last day.
 - Impossible days (`2027-02-30`) and unknown coarse forms (`2027-Q5`) are `E-DATE`. A range whose
   end is before its start is `E-DATE`.
-- An **estimate** is a duration token: `Nd` days, `Nw` weeks, `Nm` calendar months. Estimates are
-  real calendar time. There are no working-day calendars, no story points and no resource levelling.
-  The arithmetic is in §7.1.
+- An **estimate** is a duration token: `Nd` weekdays, `Nw` weeks, `Nm` calendar months. `Nd` counts
+  Monday to Friday; `Nw` and `Nm` are calendar time. There are no holiday calendars, no story points and
+  no resource levelling. The arithmetic is in §7.1.
 - Estimates are forecasts. Milestone dates, `by:`, ranges and Commitments are declared and never
   move automatically.
 
@@ -275,14 +280,27 @@ a whole day; "today" is `--today D`, else `PMD_TODAY`, else the system date.
 | forecast start / end | computed by tools |
 | today | the day tools run (or `--today`) |
 
-**Days are inclusive.** An item occupies whole days `start .. end`. An estimate of N days starting on
-S ends on `S + N − 1`. `1w` is 7 days. For `Nm`, add N calendar months to S (day clamped to the last
-day of the month), then subtract one day. "Starts after X" means the day after X's end.
+**Days are inclusive.** An item occupies whole days `start .. end`, both included. There are two kinds
+of estimate:
+
+- `Nd` is N **weekdays**, Monday to Friday. The start counts as the first. A start on a Saturday or
+  Sunday moves to the Monday after it. There are no holidays and no calendars: `d` is never calendar time.
+- `Nw` and `Nm` are **calendar time**. `Nw` is 7N days: an estimate of `Nw` starting on S ends on
+  `S + 7N − 1`. For `Nm`, add N calendar months to S (day clamped to the last day of the month), then
+  subtract one day.
+
+"Starts after X" means the day after X's end. Whoever needs calendar time uses `w`, `m`, a range
+`A .. B` or dates.
 
 | Estimate | Start | End | Why |
 |---|---|---|---|
-| `3d` | 2027-03-01 | 2027-03-03 | 3 days inclusive |
-| `1w` | 2027-01-31 | 2027-02-06 | 7 days inclusive |
+| `3d` | 2027-03-01 | 2027-03-03 | 3 weekdays: Mon, Tue, Wed |
+| `3d` | 2027-03-04 | 2027-03-08 | 3 weekdays: Thu, Fri, then Mon (the weekend is skipped) |
+| `5d` | 2027-03-01 | 2027-03-05 | 5 weekdays: Mon to Fri |
+| `1d` | 2027-03-06 | 2027-03-08 | a Saturday start moves to Monday |
+| `10d` | 2027-03-03 | 2027-03-16 | 10 weekdays, two weeks |
+| `1w` | 2027-01-31 | 2027-02-06 | 7 calendar days |
+| `1w` | 2027-03-06 | 2027-03-12 | 7 calendar days, Saturday to Friday |
 | `1m` | 2027-01-31 | 2027-02-27 | 01-31 + 1 month = 02-28 (clamped), minus 1 day |
 | `1m` | 2027-02-01 | 2027-02-28 | 03-01 minus 1 day |
 
@@ -333,7 +351,7 @@ before today (the record of an actual start), then `start = max(start, today)`.
 | a | done with `done: D` | `D` (start moves back to `D` if later) |
 | b | link node | §7.5 |
 | c | it has live (not cancelled) sub-items that have an end | the latest sub-item end; `start = min(own start, earliest sub-item start)`. The node's own declared end is not part of the forecast: it gives slack and conflict only (§7.6, §7.7). An estimate on a parent is used only while no sub-item has an end, so promoting an item into sub-items needs no edit |
-| d | estimate | `start + estimate − 1 day` (§7.1) |
+| d | estimate | the N-th weekday counting `start` as the first; a Saturday or Sunday `start` moves to Monday (§7.1) |
 | e | the node has a start that comes from an `after:` | it is a point: `end = start`. For `after: ^id` the point falls on that item's end day |
 | f | its declared end (leading date or `by:`), when nothing above applies | that date, but never before `start` |
 | g | nothing to date it: no estimate, no sub-items, no declared end, no `after:` | a point today: `start = end = today` |
@@ -534,7 +552,7 @@ E = error, W = warning, I = info. The message is what a person sees. Negotiation
 | W-DISPUTED | contract `disputed` (§9): promise later than `by:`, or the target is cancelled | "`Lunar module` promises 2028-03-31, after `by: 2028-02-28`" | parent: move `by:`, re-plan, or talk to the child |
 | W-UNKNOWN | link not readable here, on a line with `by:` | "`Lunar module` could not be read; shown as unknown" | check the link and its access |
 | I-REQUESTED | contract `requested` (info) | "`Lunar module` has not answered `by: 2028-02-28`" | child: state a Commitment or milestone date |
-| W-KEYLIKE | a known key with no value or an invalid value (also as the last word of a title); a known key in a heading; a date at the end of a title; a list item with a leading date, no checkbox, and a planning suffix (`^id`, a known key or an estimate) (a bare dated note is prose: no diagnostic); `done:` on an open item | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | write a valid value, or reword; tick the box before `done:`; use `by: DATE` |
+| W-KEYLIKE | a known key with no value or an invalid value (also as the last word of a title); an unknown `word:` skipped in the suffix (§3.4 rule 6); a known key in a heading; a date at the end of a title; a list item with a leading date, no checkbox, and a planning suffix (`^id`, a known key or an estimate) (a bare dated note is prose: no diagnostic); `done:` on an open item | "Line 5: `by: Friday` is not a valid `by:` value; kept in the title" | write a valid value, or reword; tick the box before `done:`; use `by: DATE`; use a `#tag` for data other tools read |
 | W-NO-OWNER | missing `Owner` | "`Owner` is not set" | add `- Owner: Name <email>` under the title |
 
 Unclosed brackets (`[x](y.md` or `<a@b`) are text, not a diagnostic.
@@ -614,6 +632,8 @@ unless `--deep` is given.
 
 | Command | Shows |
 |---|---|
+| `pmd schedule FILE... [--deep] [--rows] [--today D] [--json]` | the forecast schedule. `--rows`: one JSON line per item, for other tools (schema `schema/rows.schema.json`); each file is scheduled once. `--deep` follows links into child files |
+| `pmd load FILE... [--deep] [--owner NAME] [--today D] [--json]` | per owner and ISO week, the weeks in which an owner has two or more open leaf items at once. Informative: the forecast never levels work (schema `schema/load.schema.json`) |
 | `pmd ready FILE... [--deep] [--owner NAME] [--today D] [--json]` | the queue: one line per move. Kinds: `do` (open work whose predecessors are done), `decide` (a disputed contract on a link line you own), `fix` (an unknown link), `answer` (child side: the parent asked by a date and the child has not promised), `deliver` (child side: overdue). `answer` and `deliver` appear when the parent is among the files read |
 | `pmd why FILE [^id] [--deep] [--json]` | the **driver** of an item's end: the one constraint that fixed it (its own date, an estimate from a start set by a predecessor or `after: DATE`, the latest child, the linked project's promise, its own `by:`). Prints the chain back to its root cause in this file. A chain that ends on a link line names the child and milestone; drill down there. The critical path of a large programme is found by following drivers one file at a time |
 | `pmd changes OLD NEW [--json]` | events between two versions of one file: Commitment moved; milestone added, removed, moved, done; link added or removed; `by:` added, moved or removed; item done, cancelled, owner changed. One line each, with the day delta. With git: `pmd changes <(git show HEAD~1:plan.md) plan.md` |

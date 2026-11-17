@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/load.schema.json",
+  "title": "pmd load --json output",
+  "description": "How much each owner has at once, by ISO week (informative). Built from the rows of `pmd schedule --rows` (rows.schema.json): only open leaf items with a start and an end later than the start count. Lists every owner with at least one week, and every week with at least one item running. Owner \"(no owner)\" groups items without an owner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "today",
+    "owners"
+  ],
+  "properties": {
+    "today": {
+      "type": "string",
+      "format": "date"
+    },
+    "owners": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "owner",
+          "weeks"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "week",
+                "count",
+                "items"
+              ],
+              "properties": {
+                "week": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-W[0-9]{2}$",
+                  "description": "ISO week, Monday to Sunday."
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "items": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "file",
+                      "line",
+                      "title"
+                    ],
+                    "properties": {
+                      "file": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

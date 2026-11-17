@@ -87,6 +87,15 @@ step with the files ([DESIGN §4.2](DESIGN.md#42-the-three-laws)). Permissions b
 the files live in. Put attachments wherever the team keeps them, and link to them from the
 description.
 
+## Story points
+
+The format has no story points, on purpose. In practice a point is time under another name: "this
+is a 3" is a guess at how long the work takes, and the file already has a field for that guess, the
+estimate. A team that does not estimate uses the flow forecast above, which needs only the `done:`
+dates. A team that estimates writes time, such as `3d`. A team that still wants points can write a
+tag, such as `#sp-5`, for its own tool. projectmd ignores it: a tag is not a field, and no command
+reads it.
+
 ## Commands
 
 ```

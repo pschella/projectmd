@@ -8,6 +8,7 @@ pub mod fmt;
 pub mod graph;
 pub mod contract;
 pub mod iface;
+pub mod load;
 pub mod model;
 pub mod parse;
 pub mod ready;

@@ -92,7 +92,7 @@ fn list_line(
 ) -> String {
     let pad = " ".repeat(2 * depth);
     if let Some(s) = split_item(body, refdefs) {
-        if !s.has_error {
+        if !s.has_error && !s.skipped {
             return format!("{pad}{}", render(&s));
         }
     }

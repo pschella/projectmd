@@ -53,7 +53,7 @@ fn deep_continues_in_the_child_file() {
 fn not_started_work_ends_on_today() {
     let f = files("why_today", &[("a.md", "# A\n\n- Owner: Ann\n\n- [ ] Task  5d  ^t\n")]);
     let out = run(&["why", &f[0], "^t"]);
-    assert!(out.contains("forecast 2027-01-18") && out.contains("not started: earliest start is today"), "{out}");
+    assert!(out.contains("forecast 2027-01-20") && out.contains("not started: earliest start is today"), "{out}");
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn open_undated_decision_is_due_today() {
 fn default_explains_the_project_end_and_every_conflict() {
     let f = files("why_conf", &[("a.md", "# A\n\n- Owner: Ann\n- Commitment: 2027-01-20\n\n- [ ] Late  10d  by: 2027-01-18  ^l\n")]);
     let out = run(&["why", &f[0]]);
-    assert!(out.contains("A  forecast 2027-01-23") && out.contains("(declared 2027-01-20, 3d late)"), "{out}");
+    assert!(out.contains("A  forecast 2027-01-27") && out.contains("(declared 2027-01-20, 7d late)"), "{out}");
     assert!(out.contains("Late") && out.contains("by: 2027-01-18") || out.matches("forecast").count() >= 2, "{out}");
 }
 

@@ -61,11 +61,62 @@ mod month_tests {
     #[test]
     fn duration_end_is_inclusive() {
         use crate::model::Duration;
-        let d = |n, unit, days| Duration { n, unit, days, text: String::new() };
+        let d = |n, unit, days| Duration { n, unit, days, weekdays: unit == 'd', text: String::new() };
         assert_eq!(d(6, 'w', 42).end_from(Civil::new(2026, 11, 14)), Civil::new(2026, 12, 25));
-        assert_eq!(d(1, 'd', 1).end_from(Civil::new(2026, 11, 14)), Civil::new(2026, 11, 14));
+        assert_eq!(d(1, 'd', 1).end_from(Civil::new(2026, 11, 14)), Civil::new(2026, 11, 16));
         assert_eq!(d(1, 'm', 30).end_from(Civil::new(2027, 1, 15)), Civil::new(2027, 2, 14));
     }
+    #[test]
+    fn weekday_estimates() {
+        use super::{next_weekday, weekdays_end};
+        let c = Civil::new;
+        // rule 1: the examples of the spec
+        assert_eq!(weekdays_end(c(2027, 3, 1), 3), c(2027, 3, 3));
+        assert_eq!(weekdays_end(c(2027, 3, 4), 3), c(2027, 3, 8));
+        assert_eq!(weekdays_end(c(2027, 3, 1), 5), c(2027, 3, 5));
+        assert_eq!(weekdays_end(c(2027, 3, 6), 1), c(2027, 3, 8));
+        assert_eq!(weekdays_end(c(2027, 3, 3), 10), c(2027, 3, 16));
+        // a Sunday start is the Monday after
+        assert_eq!(next_weekday(c(2027, 3, 7)), c(2027, 3, 8));
+        assert_eq!(weekdays_end(c(2027, 3, 7), 1), c(2027, 3, 8));
+        // ten chained 3d tasks from Mon 2027-03-01 end Fri 2027-04-09
+        let mut s = c(2027, 3, 1);
+        for _ in 0..10 {
+            let e = weekdays_end(s, 3);
+            s = Civil::from_days(e.to_days() + 1);
+        }
+        assert_eq!(Civil::from_days(s.to_days() - 1), c(2027, 4, 9));
+    }
+}
+
+/// Weekday of a day number, Monday 0 to Sunday 6 (1970-01-01 was a Thursday).
+pub fn weekday_index(z: i64) -> i64 {
+    (z + 3).rem_euclid(7)
+}
+
+/// The start of a `d` estimate: a Saturday or Sunday moves to the next Monday (D71).
+pub fn next_weekday(c: Civil) -> Civil {
+    let z = c.to_days();
+    let wd = weekday_index(z);
+    if wd >= 5 {
+        Civil::from_days(z + 7 - wd)
+    } else {
+        c
+    }
+}
+
+/// Last day of `n` weekdays (Monday to Friday) from `start`, the start counting as the first (D71).
+/// A weekend start counts from the Monday after it.
+pub fn weekdays_end(start: Civil, n: u32) -> Civil {
+    let s = next_weekday(start);
+    let idx = weekday_index(s.to_days());
+    let t = idx + n.max(1) as i64 - 1;
+    Civil::from_days(s.to_days() + 7 * (t / 5) + t % 5 - idx)
+}
+
+/// Number of weekdays in `a ..= b` (0 when `b` is before `a`).
+pub fn count_weekdays(a: Civil, b: Civil) -> i64 {
+    (a.to_days()..=b.to_days()).filter(|z| weekday_index(*z) < 5).count() as i64
 }
 
 pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {

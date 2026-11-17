@@ -112,7 +112,7 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18
 <tr><td><code>- [ ]</code> <code>[x]</code> <code>[-]</code></td><td>open, done, will not happen</td></tr>
 <tr><td><code>2027-06-30 …</code></td><td>leading date: a milestone, with that declared end</td></tr>
 <tr><td><code>2027-Q3</code> <code>a .. b</code></td><td>coarse date; range with declared start and end</td></tr>
-<tr><td><code>12w</code> <code>3d</code> <code>2m</code></td><td>estimate in calendar time</td></tr>
+<tr><td><code>12w</code> <code>3d</code> <code>2m</code></td><td>estimate. Days are weekdays. Weeks are weeks. No calendars.</td></tr>
 <tr><td><code>^id</code></td><td>an id for local references</td></tr>
 <tr><td><code>owner: Name</code></td><td>who does it</td></tr>
 <tr><td><code>after: ^id</code></td><td>starts the day after that item ends</td></tr>
@@ -158,7 +158,7 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18
 <div class="card"><h3>Access control is external</h3><p>The store decides who reads what. In the format, a project only decides what it shows the level above.</p></div>
 <div class="card"><h3>No special root</h3><p>Every project is the top of its own view.</p></div>
 </div>
-<p>Measured on synthetic trees (release build, Apple M2): <code>pmd check</code> takes about 3 ms at 1,111 files and at 111,111 files. A deep check is linear: 11 s for 111,111 files. Details in <a href="https://github.com/pschella/projectmd/blob/main/docs/BENCHMARKS.md">BENCHMARKS</a>.</p>
+<p>Measured on synthetic trees (release build, Apple M2): <code>pmd check</code> takes about 4 ms at 1,111 files and at 111,111 files. A deep check takes 0.06 s at 1,111 files and 13 s at 111,111. Details in <a href="https://github.com/pschella/projectmd/blob/main/docs/BENCHMARKS.md">BENCHMARKS</a>.</p>
 </section>
 
 <section id="agents">
@@ -213,10 +213,11 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18
 <h2>Tools</h2>
 <p>Tools are reference implementations; the format is the product. Anyone can write others.</p>
 <div class="cards">
-<div class="card"><h3>CLI: pmd</h3><p>Parse, check, schedule, ready, why, changes, replan, format and tree.</p></div>
-<div class="card"><h3>Web Gantt viewer</h3><p>Static JavaScript plus WebAssembly, no build step.</p></div>
+<div class="card"><h3>CLI: pmd</h3><p>Parse, check, schedule, load, ready, why, changes, replan, format and tree.</p></div>
+<div class="card"><h3>Web Gantt viewer</h3><p>Static JavaScript plus WebAssembly, no build step. Weekend shading when zoomed to days, a critical path toggle, an overlap chip for owners with more than one item at once, and a legend.</p></div>
 <div class="card"><h3>Rust library</h3><p><code>pmd-core</code> is the parser and validator; it also builds to WebAssembly.</p></div>
 </div>
+<p>The tools have one job: the plan. Other tools read it. <code>pmd schedule --rows</code> prints one JSON line per item for resource planning; capacity, skills and cost stay outside the format.</p>
 <p>Build and run: see the <a href="https://github.com/pschella/projectmd#quick-start">README quick start</a>.</p>
 </section>
 
@@ -237,7 +238,7 @@ bakery.md:13  Go/no-go decision  forecast 2027-05-18
 </section>
 </main>
 <footer>
-<span>MIT OR Apache-2.0</span><a href="https://github.com/pschella/projectmd">GitHub</a><span>format 0.9 — beta</span>
+<span>MIT OR Apache-2.0</span><a href="https://github.com/pschella/projectmd">GitHub</a><span>format 0.9 — beta · pmd 0.9.0</span>
 </footer>
 <script src="highlight.js" defer></script>
 </body>

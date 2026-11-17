@@ -33,7 +33,8 @@ Bakery opening  (bakery.md)
 ## 2. Add time where it helps
 
 A duration (`3w`, real calendar time), an owner, an `^id` for anything others refer to, and `after:`
-for order. Add only what you know.
+for order. Add only what you know. In days, `d` counts weekdays (`3d` from a Thursday ends on Monday)
+and `w` counts calendar weeks (`1w` is seven days).
 
 ```markdown
 - [ ] Hire two bakers  3w  owner: Noor Haddad  ^hire

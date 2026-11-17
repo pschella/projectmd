@@ -1,6 +1,7 @@
 //! Track record (D64): how a project's promises and estimates went, from declared and delivery dates
 //! only. Informative: a record is shown next to a forecast, never fed into one. Pure.
 
+use crate::date::{count_weekdays, Civil};
 use crate::iface::interface_items;
 use crate::model::*;
 use crate::schedule::span_of_text;
@@ -61,8 +62,10 @@ pub fn estimate_record(p: &Project) -> Option<EstimateRecord> {
     p.walk(|n| {
         let (Some(dur), Some(done), true) = (&n.duration, n.done_date(), n.checkbox == Checkbox::Done) else { return };
         let Some(start) = n.keys.get("after").into_iter().flatten().filter_map(|v| v.end).max() else { return };
-        let est = dur.end_from(start).to_days() - start.to_days() + 1;
-        let act = done.to_days() - start.to_days() + 1;
+        // a `d` estimate is compared in weekdays (D71), `w` and `m` in calendar days
+        let span = |b: Civil| if dur.weekdays { count_weekdays(start, b) } else { b.to_days() - start.to_days() + 1 };
+        let est = span(dur.end_from(start));
+        let act = span(done);
         if est > 0 && act > 0 {
             ratios.push(act as f64 / est as f64);
         }

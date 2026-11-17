@@ -47,7 +47,7 @@ fn months_are_calendar() {
 #[test]
 fn after_chain_and_unfinished_task_without_info() {
     let p = run("# T\n\n- [ ] 2027-03-01 M  ^m\n- [ ] T  10d  after: ^m\n- [ ] Nothing\n", "2027-01-01", &[]);
-    assert_eq!(fc(&p, "T"), ("2027-03-02".into(), "2027-03-11".into(), false));
+    assert_eq!(fc(&p, "T"), ("2027-03-02".into(), "2027-03-15".into(), false));
     // an open item with nothing to date it is due today (its successors wait for it)
     assert_eq!(fc(&p, "Nothing"), ("2027-01-01".into(), "2027-01-01".into(), false));
 }
@@ -169,7 +169,7 @@ fn six_weeks_is_inclusive() {
     assert_eq!(fc(&p, "A"), ("2026-11-14".into(), "2026-12-25".into(), false));
     let p = run("# T\n\n- [ ] A  6w  ^a\n- [ ] B  1d  after: ^a\n", "2026-11-14", &[]);
     assert_eq!(fc(&p, "A").1, "2026-12-25");
-    assert_eq!(fc(&p, "B"), ("2026-12-26".into(), "2026-12-26".into(), false));
+    assert_eq!(fc(&p, "B"), ("2026-12-28".into(), "2026-12-28".into(), false));
 }
 
 #[test]

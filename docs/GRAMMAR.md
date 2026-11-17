@@ -218,8 +218,8 @@ A coarse date used as a start (`after:`, a range's start) is its first day; used
 
 ### 5.2 Estimates
 
-`Nd` = N days, `Nw` = 7N days, `Nm` = N calendar months. Estimates are real calendar time. How
-an estimate becomes an end date is defined once, in FORMAT §7.1.
+`Nd` = N weekdays (Monday to Friday), `Nw` = 7N calendar days, `Nm` = N calendar months. How an
+estimate becomes an end date is defined once, in FORMAT §7.1.
 
 ### 5.3 Names
 

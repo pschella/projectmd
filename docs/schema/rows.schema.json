@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/rows.schema.json",
+  "title": "pmd schedule --rows output, one row",
+  "description": "One planning item of a scheduled file (informative). `pmd schedule FILE... [--deep] --rows` prints one such object per line (JSON Lines), in file order, files in load order; headings are not rows. Dates are YYYY-MM-DD strings or null. owner is the item's own owner:, else the nearest ancestor item's, else the file's Owner: text; owner_inherited is false when the owner came from the item itself or there is none.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "file",
+    "line",
+    "id",
+    "title",
+    "kind",
+    "state",
+    "owner",
+    "owner_inherited",
+    "start",
+    "end",
+    "declared_end",
+    "slack_days",
+    "estimate_days",
+    "tags",
+    "parent_line",
+    "leaf"
+  ],
+  "properties": {
+    "file": {
+      "type": "string",
+      "description": "The file the item is in, as loaded."
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "type": ["string", "null"],
+      "description": "The item's ^id, or null."
+    },
+    "title": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": ["task", "milestone", "subproject", "deliverable"]
+    },
+    "state": {
+      "enum": ["open", "done", "cancelled"]
+    },
+    "owner": {
+      "type": ["string", "null"]
+    },
+    "owner_inherited": {
+      "type": "boolean"
+    },
+    "start": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Forecast start."
+    },
+    "end": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Forecast end."
+    },
+    "declared_end": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "slack_days": {
+      "type": ["integer", "null"],
+      "description": "Declared end minus forecast end, in days (negative in conflict)."
+    },
+    "estimate_days": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "The item's duration in days, or null without one."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^#]"
+      }
+    },
+    "parent_line": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Line of the nearest enclosing planning item, or null."
+    },
+    "leaf": {
+      "type": "boolean",
+      "description": "True when no sub-item is open."
+    }
+  }
+}

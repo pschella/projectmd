@@ -64,7 +64,7 @@ Forecast rules follow FORMAT §7.1–7.3:
 - A deliverable line takes its date from the target milestone in `interfaces`; local items
   follow it with `after: ^id`. `after:`/`by:` never name another file.
 - A node with nothing to place it in time gets `start`/`end` = null.
-- Durations are calendar time; `Nm` means calendar months.
+- `Nd` durations count weekdays (Monday to Friday); `Nw` and `Nm` are calendar time, and `Nm` means calendar months.
 - An unfinished node never ends before `today`.
 - A cancelled node is not waited for.
 
@@ -90,5 +90,10 @@ URL state (the viewer keeps these in the address bar; other parameters are prese
 - `#L<line>`: the node of the root file at that source line is selected. Restored on load.
 - `?view=board`: the Board view (one `pmd_board` per loaded file, read-only); absent means the Gantt. Switched by the toolbar or the keys `g` / `b`.
 - `?q=<text>`: search text (title, owner, `^id`). `?owner=<name>`: one owner. `?hide_done=1`: done items hidden.
-  `?ms=1`: milestones only. `?attn=<conflict|disputed|overdue|decide|due14|late|tight>`: one attention chip.
+  `?ms=1`: milestones only. `?attn=<conflict|disputed|overdue|decide|due14|late|tight|overlap>`: one attention chip.
+  `overlap` filters to open leaf tasks that overlap in time with another task of the same owner (each lasting more
+  than one day). The chip is hidden when no task qualifies.
+- `?cp=1`: the critical path is outlined (toolbar button, key `c`). The chain starts at the item whose forecast end is the
+  project's (else the one finishing last) and follows the driver lines, crossing into loaded files through links.
+  The keys `c` and `?` (legend) are not URL state.
   All are restored on load and written with `history.replaceState`. The optional columns are kept in `localStorage` (`pmd.cols`).

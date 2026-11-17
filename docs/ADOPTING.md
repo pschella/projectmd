@@ -112,13 +112,86 @@ assignments inbox. Pair it with what you have: keep tickets in your tracker, and
 and promises into plans (a ticket id in a description is enough). Let the tracker own the day-to-day, and the
 plan own "when" and "what depends on what".
 
+## Resource planning and other tools
+
+The format does one thing: it holds the plan. That is the current state, the dependencies, the
+forecast, and who owns each step. Capacity, calendars, skills, cost and allocation belong to other
+tools. Those tools read the plan; the plan never stores their data.
+
+A resource tool starts from one command:
+
+```
+pmd schedule plan.md --deep --rows
+```
+
+It prints one JSON line per item, with the keys `file`, `line`, `id`, `title`, `kind`, `state`,
+`owner`, `owner_inherited`, `start`, `end`, `declared_end`, `slack_days`, `estimate_days`, `tags`,
+`parent_line` and `leaf`. The schema is in [schema/rows.schema.json](schema/rows.schema.json).
+`owner` is inherited from the enclosing item, or from the file's `Owner:` when the item has none;
+`owner_inherited` says which. On a team file, an inherited owner means "not yet assigned".
+
+Take this three-item plan (the file's `Owner:` line is left out):
+
+```markdown
+- [ ] Draft invoice template  3d  owner: Bo  ^template
+- [ ] Migrate ledger  5d  after: ^template  owner: Bo  #skill-sql  ^ledger
+- [ ] Check ledger totals  after: ^ledger  owner: Mara Lind  ^check
+```
+
+Its three rows, wrapped here for reading (the scratch file had a title and an `Owner:` line above, so the lines start at 5):
+
+```json
+{"file":"plan.md","line":5,"id":"template","title":"Draft invoice template","kind":"task",
+ "state":"open","owner":"Bo","owner_inherited":false,"start":"2027-03-10","end":"2027-03-12",
+ "declared_end":null,"slack_days":null,"estimate_days":3,"tags":[],"parent_line":null,"leaf":true}
+{"file":"plan.md","line":6,"id":"ledger","title":"Migrate ledger","kind":"task",
+ "state":"open","owner":"Bo","owner_inherited":false,"start":"2027-03-15","end":"2027-03-19",
+ "declared_end":null,"slack_days":null,"estimate_days":5,"tags":["skill-sql"],"parent_line":null,"leaf":true}
+{"file":"plan.md","line":7,"id":"check","title":"Check ledger totals","kind":"task",
+ "state":"open","owner":"Mara Lind","owner_inherited":false,"start":"2027-03-19","end":"2027-03-19",
+ "declared_end":null,"slack_days":null,"estimate_days":null,"tags":[],"parent_line":null,"leaf":true}
+```
+
+Need calendar days? Use weeks (`1w` is 7 days), a range `A .. B` or dates. A `d` estimate counts
+weekdays, so it is not calendar days. Agents leave the estimate off unless an owner gave one.
+
+Tags are the extension point. A `#tag` means nothing to the scheduler, and tools pass it through
+untouched. A team may agree on conventions, for example `#team-backend` for the team that does the
+work, `#fte-50` for half of a person, or `#skill-welding` for a skill a step needs. An estimate is
+time: `5d` means five weekdays, Monday to Friday, whatever the effort. If a tool
+needs effort, put it in a tag such as `#effort-2d`. Unknown `key: value` pairs are not an extension
+point. The parser ignores them and warns, so use a tag instead.
+
+`pmd load FILE --deep` shows, per owner and week, where someone has more than one item at once:
+
+```
+Bo  2027-W10  2 at once: plan.md:6 Build; plan.md:9 Migrate data
+```
+
+The forecast never levels work. It reports the overlap and stops there. The fix is the owner's edit:
+add `after: ^other` to do one item after the other, or `after: DATE` to start on a given day.
+
+Results come back into the plan only as the owner's own edit: an `after:`, a longer estimate, or a
+moved promise. No tool writes someone else's file. A tool that finds a problem tells the owner, and
+the owner decides.
+
+Order is priority. Items higher in a file come first. In a parent, the order of its link lines sets
+the priority between sub-projects. No field is needed.
+
+Agents often finish work in minutes. For that kind of work, leave the estimate off. An item with no
+estimate is a point on the day its predecessors end, so a chain of small steps fits in one day. The
+format has no hours: what matters is the day something is done.
+
+An owner may be written `Name <email>` when tools need a stable identity, for example
+`owner: Bo Osei <bo@example.org>`. Plain names still work for people and teams that do not need one.
+
 ## FAQ
 
 **Do we need the tools?** No. The files are readable and editable by hand. Tools add forecasts and checks.
 
 **Can a parent see a child's whole plan?** No, only its Commitment and non-`#private` milestones.
 
-**How do we handle holidays?** Estimates are calendar time. Put the real constraint in as a date.
+**How do we handle holidays?** A `d` estimate counts weekdays with no holidays. Put the real constraint in as a date.
 
 **What if a child ignores `by:`?** It stays "requested" in `pmd ready` and `pmd tree` until answered.
 

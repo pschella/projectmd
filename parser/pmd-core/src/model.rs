@@ -60,15 +60,19 @@ pub struct Duration {
     /// Length in days for `d`/`w`. For `m` this is only a rough size hint (30 per month);
     /// use [`Duration::end_from`] for real calendar arithmetic.
     pub days: u32,
+    /// `d` counts weekdays (Monday to Friday, D71); `w` and `m` are calendar time.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub weekdays: bool,
     pub text: String,
 }
 
 impl Duration {
     /// Inclusive last day of a span of this duration starting on `start`:
-    /// `d`/`w` span N days (start + N - 1); `m` is start + N calendar months - 1 day
-    /// (2027-01-15 + 1m ends 2027-02-14).
+    /// `d` is N weekdays (a weekend start moves to Monday); `w` spans N days (start + N - 1); `m` is
+    /// start + N calendar months - 1 day (2027-01-15 + 1m ends 2027-02-14).
     pub fn end_from(&self, start: Civil) -> Civil {
         match self.unit {
+            'd' => crate::date::weekdays_end(start, self.n),
             'm' => Civil::from_days(start.add_months(self.n as i64).to_days() - 1),
             _ => Civil::from_days(start.to_days() + self.days as i64 - 1),
         }
@@ -316,6 +320,9 @@ pub fn fix_hint(code: &str) -> Option<&'static str> {
 pub fn fix_for(d: &Diagnostic) -> Option<&'static str> {
     if d.code == "E-CYCLE" && d.message.contains("`after:`") {
         return Some("Remove one `after:`");
+    }
+    if d.code == "W-KEYLIKE" && d.message.contains("is ignored") {
+        return Some("Remove it, or write the data as a #tag");
     }
     fix_hint(d.code)
 }

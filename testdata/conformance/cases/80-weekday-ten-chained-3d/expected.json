@@ -1,0 +1,97 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step A",
+      "id": "t1",
+      "start": "2027-03-01",
+      "end": "2027-03-03"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step B",
+      "id": "t2",
+      "start": "2027-03-04",
+      "end": "2027-03-08"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step C",
+      "id": "t3",
+      "start": "2027-03-09",
+      "end": "2027-03-11"
+    },
+    {
+      "line": 8,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step D",
+      "id": "t4",
+      "start": "2027-03-12",
+      "end": "2027-03-16"
+    },
+    {
+      "line": 9,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step E",
+      "id": "t5",
+      "start": "2027-03-17",
+      "end": "2027-03-19"
+    },
+    {
+      "line": 10,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step F",
+      "id": "t6",
+      "start": "2027-03-22",
+      "end": "2027-03-24"
+    },
+    {
+      "line": 11,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step G",
+      "id": "t7",
+      "start": "2027-03-25",
+      "end": "2027-03-29"
+    },
+    {
+      "line": 12,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step H",
+      "id": "t8",
+      "start": "2027-03-30",
+      "end": "2027-04-01"
+    },
+    {
+      "line": 13,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step I",
+      "id": "t9",
+      "start": "2027-04-02",
+      "end": "2027-04-06"
+    },
+    {
+      "line": 14,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Step J",
+      "id": "t10",
+      "start": "2027-04-07",
+      "end": "2027-04-09"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}
