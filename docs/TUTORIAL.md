@@ -1,12 +1,17 @@
 # Your first plan in ten minutes
 
-Noor Haddad is opening a bakery on 2027-06-01. We build her plan in seven steps. The finished
+A project manager thinks in people, work and dates: who does what, how long it takes, and when it must
+be done. A projectmd plan is a Markdown file that says exactly that, and `pmd` answers the questions a
+project manager asks of it.
+
+Noor Haddad is opening a bakery on 2027-06-01. We build her plan in eight steps. The finished
 files are in [examples/bakery/](../examples/bakery/README.md). Commands assume `pmd` is on your
 path and `PMD_TODAY=2027-03-01` (a fixed "today", so the output below is reproducible).
 
 ## 1. A todo list is already a plan
 
-Make a file `bakery.md`. A heading, an owner, and checkbox items. Nothing else is required.
+Start with the work. Make a file `bakery.md`: a heading, the person responsible for the project, and
+checkbox items. Nothing else is required.
 
 ```markdown
 # Bakery opening
@@ -30,21 +35,27 @@ Bakery opening  (bakery.md)
     [ ] Bakery opens
 ```
 
-## 2. Add time where it helps
+## 2. Add people and time where it helps
 
-A duration (`3w`, real calendar time), an owner, an `^id` for anything others refer to, and `after:`
-for order. Add only what you know. In days, `d` counts weekdays (`3d` from a Thursday ends on Monday)
-and `w` counts calendar weeks (`1w` is seven days).
+For each piece of work, say who does it (`owner:`), how long it takes (`3w`, real calendar time) and
+what it waits for (`after:`). Give an item an `^id` when other items refer to it. Add only what you
+know. In days, `d` counts weekdays (`3d` from a Thursday ends on Monday) and `w` counts calendar weeks
+(`1w` is seven days). `after:` also takes a real date: the earliest day the work can start.
 
 ```markdown
 - [ ] Hire two bakers  3w  owner: Noor Haddad  ^hire
 - [ ] Test menu  2w  owner: Noor Haddad  ^menu
   Done when three bakes in a row pass the tasting panel.
 - [ ] Go/no-go decision  after: ^menu  after: ^hire  owner: Noor  ^gono
+- [ ] Stock the shop  1w  after: 2027-05-17  owner: Noor Haddad
+- [ ] Bakery opens  after: ^gono
 ```
 
 The indented line is the item's description: free text, ideal for "done when ...". The go/no-go has no
 estimate and no date: it is a decision Noor owes, so it counts as due today and what waits on it slips.
+Stocking waits for 2027-05-17, so the flour is fresh for opening.
+
+What can start today?
 
 ```
 $ pmd ready bakery.md
@@ -54,12 +65,23 @@ bakery.md:7  DO  Test menu  owner: Noor Haddad  due: 2027-03-14
 2 ready (1 file read)
 ```
 
-`ready` lists work that can start today. The go/no-go is not there: it waits for both.
+The go/no-go is not there: it waits for both. Stocking waits for its date, and the opening waits for
+the go/no-go. Is anyone doing too much at once?
 
-## 3. Milestones and promises
+```
+$ pmd load bakery.md
+Noor Haddad  2027-W09  2 at once: bakery.md:6 Hire two bakers; bakery.md:7 Test menu
+Noor Haddad  2027-W10  2 at once: bakery.md:6 Hire two bakers; bakery.md:7 Test menu
+2 owner-weeks with more than one item (1 file read)
+```
 
-A leading date makes a milestone: a promise that other plans may depend on. Header `Commitment:` is
-the promise of the whole project: here, the opening date.
+Noor hires and tests the menu in the same two weeks. If that is too much, `after: ^hire` on the test
+menu puts them in sequence.
+
+## 3. Dates: milestones and the commitment
+
+Some dates are fixed: the opening is 2027-06-01. A date in front of an item makes it a milestone. The
+`Commitment:` header is the date the whole project promises.
 
 ```markdown
 - Commitment: 2027-06-01
@@ -67,19 +89,29 @@ the promise of the whole project: here, the opening date.
 - [ ] 2027-06-01 Bakery opens  after: ^gono
 ```
 
-Only declared dates are written. The forecast is computed, never stored (output here is from the finished example, after step 5).
+You write only the dates you decide. Everything else is forecast from the durations and the order, and
+never stored.
 
 ```
 $ pmd schedule bakery.md
-Bakery opening  2027-03-01 .. 2027-05-25
-  ...
+Bakery opening  2027-03-01 .. 2027-05-23
+  Work  2027-03-01 .. 2027-05-23
+    Hire two bakers  2027-03-01 .. 2027-03-21
+    Test menu  2027-03-01 .. 2027-03-14
+    Go/no-go decision  2027-03-21 .. 2027-03-21
+    Stock the shop  2027-05-17 .. 2027-05-23
+    Bakery opens  2027-03-21 .. 2027-03-21  (declared 2027-06-01)  slack +72d
 ```
 
-## 4. Delegate by linking
+Slack is the margin between the date promised and the date forecast. With only Noor's own work in the
+plan, the opening looks easy. The kitchen will change that.
 
-The kitchen is Dmitri's job and the food licence is Ama's. Each has a file of their own. Noor links to
-what she needs and says when with `by:`. Linking to a milestone (`#ovens`) makes it a deliverable;
-`Test menu` depends on it with `after: ^ovens`, a promise rather than a copied date.
+## 4. Work other people own
+
+The kitchen is Dmitri's job and the food licence is Ama's. A short task for someone else is just an
+item with their name as `owner:`. Dmitri and Ama run plans of their own, though, so Noor does not copy
+their work into hers. She adds one line per result she needs, links it to their file, and says when
+she needs it with `by:`. `Test menu` can start once the ovens are in.
 
 ```markdown
 - [ ] [Ovens installed](fitout/fitout.md#ovens)  by: 2027-05-10  ^ovens
@@ -88,8 +120,8 @@ what she needs and says when with `by:`. Linking to a milestone (`#ovens`) makes
 - [ ] Test menu  2w  after: ^ovens  owner: Noor Haddad  ^menu
 ```
 
-Dmitri's queue lists the work he owns. His promises are already in his file, so there are no requests
-for him to answer:
+The go/no-go now also waits for the licence, and the opening for the fit-out. Commands that should
+follow these links take `--deep`. Dmitri sees his own work:
 
 ```
 $ pmd ready bakery.md --deep --owner Dmitri
@@ -100,22 +132,26 @@ fitout/fitout.md:7  DO  Design  owner: Dmitri Volkov  due: 2027-03-14  started: 
 
 ## 5. Negotiate a date
 
-Dmitri answers by dating milestones in his own file (`2027-05-04 Ovens installed`,
-`2027-05-25 Kitchen fit-out complete`). Noor's file does not change: the contract states are computed.
+Dmitri answers with dates in his own file: ovens on 2027-05-04, fit-out complete on 2027-05-25. Noor's
+file does not change, but her schedule does:
 
 ```
-$ pmd tree bakery.md
-Bakery opening  commitment=2027-06-01  (bakery.md)
-  ## Work
-    [ ] Hire two bakers  3w
-    <> Ovens installed  -> fitout/fitout.md#ovens 2027-05-04 agreed → child
-    <> Kitchen fit-out complete  -> fitout/fitout.md#complete 2027-05-25 disputed → parent
-    <> Food licence granted  -> licences.md#food-licence 2027-04-12 agreed → child
-    ...
+$ pmd schedule bakery.md
+Bakery opening  2027-03-01 .. 2027-05-25
+  Work  2027-03-01 .. 2027-05-25
+    Hire two bakers  2027-03-01 .. 2027-03-21
+    Ovens installed  2027-05-04 .. 2027-05-04  (declared 2027-05-10)  slack +6d
+    Kitchen fit-out complete  2027-05-25 .. 2027-05-25  (declared 2027-05-15)  slack -10d
+    Food licence granted  2027-04-12 .. 2027-04-12  (declared 2027-05-15)  slack +33d
+    Test menu  2027-05-05 .. 2027-05-18
+    Go/no-go decision  2027-05-18 .. 2027-05-18
+    Stock the shop  2027-05-17 .. 2027-05-23
+    Bakery opens  2027-05-25 .. 2027-05-25  (declared 2027-06-01)  slack +7d
 ```
 
-The ovens are agreed (promise before `by:`). The fit-out is disputed: asked 05-15, promised 05-25. A
-dispute is the parent's move, because a promise is what the child can do and `by:` is only a wish.
+The ovens and the licence come in time. The fit-out does not: Noor asked for 05-15, Dmitri can do 05-25.
+The date Dmitri gives is what he can do; Noor's `by:` is only what she asked for. So settling it is
+Noor's decision, and it shows up in her queue:
 
 ```
 $ pmd ready bakery.md --deep --owner Noor
@@ -125,10 +161,10 @@ bakery.md:9  DECIDE  Kitchen fit-out complete  owner: Noor Haddad  due: 2027-05-
 2 ready (3 files read)
 ```
 
-Noor can accept (change her `by:` to 2027-05-25), re-plan, or talk to Dmitri. `pmd check --deep` keeps
-the warning (`W-DISPUTED`) until she does.
+The opening still has seven days of slack, so Noor can accept (change her `by:` to 2027-05-25),
+re-plan, or talk to Dmitri. `pmd check --deep` keeps the warning (`W-DISPUTED`) until she does.
 
-## 6. Find your work with `pmd ready`
+## 6. Each person's queue: `pmd ready`
 
 Each person (or agent) asks for their own queue: `do` for work, `decide` for disputes they must settle,
 `answer` for requests they have not answered, `deliver` for overdue promises, `fix` for unreadable links.

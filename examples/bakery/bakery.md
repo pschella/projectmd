@@ -11,4 +11,5 @@
 - [ ] Test menu  2w  after: ^ovens  owner: Noor Haddad  ^menu
   Done when three bakes in a row pass the tasting panel.
 - [ ] Go/no-go decision  after: ^menu  after: ^hire  after: ^licence  owner: Noor  ^gono
+- [ ] Stock the shop  1w  after: 2027-05-17  owner: Noor Haddad
 - [ ] 2027-06-01 Bakery opens  after: ^gono  after: ^fitout
