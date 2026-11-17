@@ -155,6 +155,10 @@ impl Graph {
     pub fn projects(&self) -> &[Project] {
         &self.projects
     }
+    /// Change every project in place (paths must stay the same): avoids a second copy of a large graph.
+    pub fn for_each_mut(&mut self, mut f: impl FnMut(&mut Project)) {
+        self.projects.iter_mut().for_each(&mut f);
+    }
     pub fn len(&self) -> usize {
         self.projects.len()
     }

@@ -290,21 +290,24 @@ fn diag_json(d: &Diagnostic) -> serde_json::Value {
 /// Default: FILE and its direct links, read live (one level). `--deep`: the
 /// whole graph reachable from FILE. `--strict`: warnings fail too (info never does).
 fn cmd_check(root: &str, today: Civil, json: bool, deep: bool, strict: bool) -> i32 {
-    let ld = if deep { Loader::load(root) } else { Loader::load_depth(root, 1) };
-    let g = ld.graph.as_ref().unwrap();
+    let mut ld = if deep { Loader::load(root) } else { Loader::load_depth(root, 1) };
     let rootn = normalize(root);
-    let mut diags = all_diags(g);
+    let mut diags = all_diags(ld.graph.as_ref().unwrap());
     if !deep {
         diags.retain(|d| normalize(&d.path) == rootn);
     }
-    let ifs = interfaces_for(g, today);
-    let sg = scheduled(g, &ifs, today);
-    for p in g.projects().iter().filter(|p| deep || normalize(&p.path) == rootn) {
-        diags.extend(contract_diags(p, today, &lookup_in(&sg)));
-        let mut c = p.clone();
-        let before = c.diagnostics.len();
-        schedule(&mut c, today, &ifs);
-        for d in &c.diagnostics[before..] {
+    let ifs = interfaces_for(ld.graph.as_ref().unwrap(), today);
+    // schedule every file once, in place: one copy of the graph, however large (BENCHMARKS.md)
+    let mut parsed: Vec<usize> = Vec::new();
+    ld.graph.as_mut().unwrap().for_each_mut(|p| {
+        parsed.push(p.diagnostics.len());
+        schedule(p, today, &ifs);
+    });
+    drop(ifs);
+    let g = ld.graph.as_ref().unwrap();
+    for (p, before) in g.projects().iter().zip(parsed).filter(|(p, _)| deep || normalize(&p.path) == rootn) {
+        diags.extend(contract_diags(p, today, &lookup_in(g)));
+        for d in &p.diagnostics[before..] {
             let mut d = d.clone();
             d.path = p.path.clone();
             diags.push(d);
