@@ -2,35 +2,90 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src *; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>projectmd viewer</title>
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 <header id="toolbar">
-  <div id="titlebox"><strong id="ptitle">projectmd</strong><span id="pmeta"></span></div>
-  <nav id="crumbs" aria-label="Previous top-level projects"></nav>
-  <div id="tools">
-    <form id="openform" autocomplete="off">
-      <input id="rootinput" type="text" placeholder="/path/to/project.md or URL" spellcheck="false" aria-label="Project file or URL">
-      <button type="submit">Open</button>
-    </form>
-    <div class="seg" id="zoomseg" role="group" aria-label="Zoom">
-      <button data-z="week" title="Weeks">Weeks</button><button data-z="month" title="Months">Months</button><button data-z="quarter" title="Quarters">Quarters</button><button data-z="year" title="Years">Years</button>
+  <div class="tbrow" id="row1">
+    <div id="titlebox"><strong id="ptitle">projectmd</strong><span id="pmeta"></span></div>
+    <nav id="crumbs" aria-label="Previous top-level projects"></nav>
+    <div id="tools">
+      <div class="seg" id="viewseg" role="group" aria-label="View">
+        <button type="button" data-view="gantt" class="on" aria-pressed="true" title="Gantt chart (g)">Gantt</button><button type="button" data-view="board" aria-pressed="false" title="Board: waiting, ready, doing, done (b)">Board</button>
+      </div>
+      <form id="openform" autocomplete="off">
+        <input id="rootinput" type="text" placeholder="/path/to/project.md or URL" spellcheck="false" aria-label="Project file or URL">
+        <button type="submit">Open</button>
+      </form>
+      <div class="tslider" role="group" aria-label="Plan date">
+        <button id="tplay" aria-pressed="false" title="Move the plan date forward to the end of the forecast">Play</button>
+        <input id="tsl" type="range" step="1" min="0" max="1" value="0" aria-label="Plan date" title="Plan date (as of)">
+        <span id="tdate" class="tdate" title="Plan date (as of)"></span>
+        <button id="treset" title="Reset the plan date to the real date (or the ?today= date)">Reset date</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="wbs" checked> WBS</label>
     </div>
-    <div class="seg">
-      <button id="zout" title="Zoom out (Ctrl+wheel)" aria-label="Zoom out">&minus;</button><button id="zin" title="Zoom in (Ctrl+wheel)" aria-label="Zoom in">+</button>
+  </div>
+  <div class="tbrow" id="row2">
+    <div class="tgrp" role="group" aria-label="Filters">
+      <input id="qsearch" type="search" placeholder="Search title, owner, ^id" spellcheck="false" aria-label="Search rows" title="Search (press /, Escape clears)">
+      <select id="ownerf" aria-label="Owner" title="Show rows of one owner">
+        <option value="">All</option>
+      </select>
+      <label class="chk gantt-only"><input type="checkbox" id="hidedone"> Hide done</label>
+      <label class="chk gantt-only"><input type="checkbox" id="msonly"> Milestones only</label>
     </div>
-    <button id="zfit" title="Fit the whole project">Fit</button>
-    <button id="ztoday" title="Scroll to today">Today</button>
-    <label class="chk"><input type="checkbox" id="wbs" checked> WBS</label>
+    <div class="tgrp gantt-only" role="group" aria-label="Zoom">
+      <div class="seg" id="zoomseg" role="group" aria-label="Zoom level">
+        <button data-z="week" title="Weeks">Weeks</button><button data-z="month" title="Months">Months</button><button data-z="quarter" title="Quarters">Quarters</button><button data-z="year" title="Years">Years</button>
+      </div>
+      <div class="seg">
+        <button id="zout" title="Zoom out (Ctrl+wheel)" aria-label="Zoom out">&minus;</button><button id="zin" title="Zoom in (Ctrl+wheel)" aria-label="Zoom in">+</button>
+      </div>
+      <button id="zfit" title="Fit the whole project">Fit</button>
+      <button id="ztoday" title="Scroll to today">Today</button>
+    </div>
+    <div class="tgrp gantt-only" role="group" aria-label="Time presets">
+      <button type="button" data-preset="4w" title="Today minus 1 week to today plus 4 weeks">4 weeks</button>
+      <button type="button" data-preset="q" title="Today minus 2 weeks to today plus 3 months">Quarter</button>
+    </div>
+    <div class="seg gantt-only" id="levelseg" role="group" aria-label="Tree level">
+      <button type="button" data-lvl="1" title="Show only top-level items">Level 1</button><button type="button" data-lvl="2" title="Expand to level 2">Level 2</button><button type="button" data-lvl="3" title="Expand to level 3">Level 3</button><button type="button" data-lvl="all" title="Expand all loaded items (sub-projects not loaded are not fetched)">All</button>
+    </div>
   </div>
 </header>
+<div id="attn" role="group" aria-label="Needs attention">
+  <span class="attn-h">Attention</span>
+  <button type="button" class="achip" data-attn="conflict" aria-pressed="false" title="Forecast later than the declared end">Conflicts <b>0</b></button>
+  <button type="button" class="achip" data-attn="disputed" aria-pressed="false" title="Contract disputed: the parent decides">Disputed <b>0</b></button>
+  <button type="button" class="achip" data-attn="overdue" aria-pressed="false" title="Promise past its date: the child delivers">Overdue <b>0</b></button>
+  <button type="button" class="achip" data-attn="decide" aria-pressed="false" title="Open, undated tasks with an owner whose forecast is today">Decisions owed <b>0</b></button>
+  <button type="button" class="achip" data-attn="due14" aria-pressed="false" title="Open items whose declared or forecast end is within 14 days">Due in 14 days <b>0</b></button>
+  <button type="button" class="achip" data-attn="late" aria-pressed="false" title="Done later than declared">Late deliveries <b>0</b></button>
+  <button type="button" class="achip" data-attn="tight" aria-pressed="false" title="Open items with a declared end and 0 to 2 days of slack (zero is a risk)">Tight <b>0</b></button>
+  <span id="fstate" aria-live="polite"></span>
+  <span class="attn-side">
+    <details id="colmenu">
+      <summary>Columns</summary>
+      <div class="menu">
+        <label class="chk"><input type="checkbox" data-colopt="slack"> Slack / late</label>
+        <label class="chk"><input type="checkbox" data-colopt="next"> Next move</label>
+      </div>
+    </details>
+    <button type="button" id="copylink" title="Copy a link to this view (root, plan date, filters, selection)">Copy link</button>
+    <button type="button" id="printbtn" title="Print the table and chart">Print</button>
+  </span>
+</div>
 <div id="banner" hidden></div>
+<div id="printhead"><h1 id="phTitle"></h1><div id="phMeta"></div></div>
 <main id="main">
   <section id="left" tabindex="-1">
-    <div id="lhead" class="grid"><div>Name</div><div>Start</div><div>Finish</div><div>Dur.</div><div>Owner</div></div>
+    <div id="lhead" class="grid"><div>Name</div><div>Start</div><div>Finish</div><div>Dur.</div><div>Owner</div><div data-col="slack">Slack / late</div><div data-col="next">Next move</div></div>
     <div id="lbody"><div id="lspacer" role="treegrid" aria-label="Project tree"></div></div>
   </section>
   <div id="split" title="Drag to resize"></div>
@@ -40,6 +95,7 @@
   </section>
   <aside id="detail" hidden aria-label="Details"></aside>
 </main>
+<section id="board" hidden aria-label="Board"></section>
 <footer id="legend" aria-label="Legend">
   <span><i class="lg bar st-open"></i>Open</span>
   <span><i class="lg bar st-done"></i>Done</span>
@@ -50,14 +106,16 @@
   <span><i class="lg ms"></i>Milestone</span>
   <span><i class="lg sub"></i>Sub-project</span>
   <span><i class="lg unk"></i>Unknown</span>
+  <span><i class="lg pfl"></i>Done share (containers)</span>
+  <span><i class="lg chainl"></i>Driver chain</span>
   <span><i class="lg todayl"></i>Today</span>
-  <span class="hint">Arrows move, Enter/Space expands</span>
+  <span class="hint">Arrows move, Enter/Space expands, i shows details, / searches, g Gantt, b Board</span>
 </footer>
 <div id="mdview" hidden role="dialog" aria-label="File view">
-  <div id="mdhead"><strong id="mdtitle"></strong><a id="mdraw" target="_blank" rel="noopener">raw</a><button id="mdopen" title="Make this file the top-level Gantt project">Open as project</button><button id="mdclose" title="Close (Esc)">Close</button></div>
+  <div id="mdhead"><strong id="mdtitle"></strong><a id="mdraw" target="_blank" rel="noopener noreferrer">raw</a><button id="mdopen" title="Make this file the top-level Gantt project">Open as project</button><button id="mdclose" title="Close (Esc)">Close</button></div>
   <div id="mdbody"></div>
 </div>
 <div id="tip" hidden></div>
-<script type="module" src="app.js?v=18"></script>
+<script type="module" src="app.js?v=23"></script>
 </body>
 </html>

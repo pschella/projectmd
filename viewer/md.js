@@ -2,14 +2,17 @@
 // Block elements carry data-line (1-based source line) so the viewer can jump to and highlight one.
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Only http(s), relative paths and #fragments survive; anything else (javascript:, data:, vbscript:, mailto:...) becomes '#'.
 function safeUrl(u) {
-  u = u.trim();
-  return /^[a-z][a-z0-9+.-]*:/i.test(u) && !/^(https?|mailto):/i.test(u) ? '#' : u;
+  u = u.replace(/[\u0000-\u0020\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]/g, '');   // browsers ignore these inside a URL
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return /^https?:/i.test(u) ? u : '#';
+  if (/^[^/?#]*:/.test(u)) return '#';                  // "scheme-like" first segment such as "&colon;" tricks
+  return u;
 }
 function anchor(text, url, refs) {
   const href = safeUrl(url);
   const isMd = /^[^:]*?\.md(#.*)?$/i.test(href) || /^https?:[^#?]*\.md(#.*)?$/i.test(href);
-  return `<a href="${esc(href)}"${isMd ? ` data-md="${esc(href)}"` : ' target="_blank" rel="noopener"'}>${inline(text, refs)}</a>`;
+  return `<a href="${esc(href)}"${isMd ? ` data-md="${esc(href)}"` : ' target="_blank" rel="noopener noreferrer"'}>${inline(text, refs)}</a>`;
 }
 const INL = /`([^`]+)`|\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\[([^\]]+)\]\[([^\]]*)\]|\*\*(.+?)\*\*|(?<![\w*])\*(?![\s*])(.+?)\*(?![\w*])|<(https?:[^>\s]+)>|\[([^\]]+)\](?![(\[])/g;
 function inline(t, refs) {

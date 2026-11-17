@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/changes.schema.json",
+  "title": "pmd changes --json output",
+  "description": "What differs between two versions of a project, as far as other parties are concerned (informative). An array of changes; extra keys are allowed.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "kind",
+      "subject"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "target": {
+        "type": "string"
+      },
+      "old": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "new": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "delta_days": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "audience": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  }
+}

@@ -63,3 +63,14 @@ pub fn interface_items(p: &Project) -> Vec<IfaceItem> {
 pub fn is_empty_promise(p: &Project) -> bool {
     p.commitment.is_none() && p.done.is_none() && interface_items(p).is_empty()
 }
+
+/// The item with `id` and whether it is cancelled (itself or an ancestor).
+pub fn find_target<'a>(p: &'a Project, id: &str) -> Option<(&'a Node, bool)> {
+    fn go<'a>(ns: &'a [Node], id: &str, canc: bool) -> Option<(&'a Node, bool)> {
+        ns.iter().find_map(|n| {
+            let c = canc || n.checkbox == Checkbox::Cancelled;
+            if n.id.as_deref() == Some(id) { Some((n, c)) } else { go(&n.children, id, c) }
+        })
+    }
+    go(&p.nodes, id, false)
+}

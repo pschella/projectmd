@@ -78,45 +78,124 @@ Only project files exist; nothing is generated.
 Everything in a plan is a **node**: a task, a milestone, a sub-project, a deliverable, a heading,
 and the file itself. They share the same properties (dates, owner, dependencies, children), so
 "same shape at every level" is literally true. Dates are either *declared* (written by a person)
-or *forecast* (computed by tools). The node kinds and the forecast and conflict rules are in
-[FORMAT §2](FORMAT.md#2-the-node-model) and [§7](FORMAT.md#7-scheduling).
+or *forecast* (computed by tools). The node kinds are in [FORMAT §2](FORMAT.md#2-the-node-model).
 
-### 4.2 Contracts, promises and interfaces
+### 4.2 The three laws
 
-| Concept | Written by | Where | Meaning |
-|---|---|---|---|
-| **need-by** | parent | `by:` on its link to the child | "I need this by …" |
-| **promise** | child | `Commitment:` in its header; its milestones' dates | "I will deliver by …" |
-| **contract** | — | the pair of the two, computed live | requested, agreed, disputed, delivered ([FORMAT §9](FORMAT.md#9-contracts)) |
-| **interface** | child | derived from its own `NAME.md` | what the child exposes ([FORMAT §8](FORMAT.md#8-interfaces-and-fronts)) |
+Three laws shape every other rule. Nothing in the format contradicts them.
 
-Each side **edits only its own file.** A parent never changes a child's promise; a child never
-changes a parent's need-by. Agreement is reached outside the format (a conversation, a pull
-request, an agent); the files record the outcome.
+| Law | Statement | What it buys |
+|---|---|---|
+| **Ownership** | Every file has one owner. You write only what you own. | no merge conflicts between owners; a clear author for every promise |
+| **Locality** | Between owners, only declared dates cross a link. Forecasts never do. | privacy between owners (a parent sees promises, not plans); scale (a view reads a file and its direct links); one owner's files are one plan, so they link transparently |
+| **Derivation** | Nothing is stored that can be computed: schedules, contract states, whose move it is, queues, drivers and change events. | no stored state to go stale or to synchronise; any tool, given the files, gets the same answer |
 
-### 4.3 What is private and what is exposed
+Ownership means a parent cannot edit a child's promise and a child cannot edit a parent's ask.
+Locality is defined in [FORMAT §7.8](FORMAT.md#78-locality-rule).
+
+### 4.3 The promise protocol
+
+Between a parent and a child there is one exchange. The parent **asks** with `by:` on its link
+line. The child **promises** with a Commitment or a dated milestone. The pair is a **contract**;
+its state is derived, and every state names who moves next
+([FORMAT §9](FORMAT.md#9-contracts)).
+
+| State | Meaning | Whose move |
+|---|---|---|
+| `delivered` | child has `Done:`, or the milestone is ticked | nobody |
+| `unknown` | child cannot be read | parent: fix the link or access |
+| `disputed` | promise later than `by:` (whether or not `by:` has passed), or milestone cancelled | parent: accept, re-plan or talk |
+| `overdue` | `by:` passed, not delivered, and no promise later than `by:` | child: deliver, or move the promise |
+| `requested` | `by:` set, no promise | child: answer |
+| `agreed` | promise on or before `by:` | child: deliver |
+
+Each side edits only its own file. Agreement is reached outside the format (a conversation, a pull
+request, an agent); the files record the outcome. A disputed contract sits with the parent because
+the child's promise is a fact about what it can do, and the parent's `by:` is a wish.
+
+A promiser who cannot deliver on time moves the promise; from that moment the contract is disputed and the next move is the asker's, even if the original need-by date has passed. Overdue means the promiser is silent.
+
+A slip is renegotiated one hop at a time. Here the descent stage slips; each owner decides what
+it means for their own promise:
+
+```
+  Descent stage            Lunar module (LM)              Programme HQ
+  -------------            -----------------              ------------
+  forecast passes its
+  Commitment (own check:
+  E-CONFLICT)
+  moves Commitment
+  2027-11-30 -> 12-31 ----> reads it: contract with
+                            descent stage is `disputed`
+                            LM owner decides:
+                            (a) accept: by: -> 12-31;
+                                LM forecast still inside      sees nothing change
+                                its own Commitment  ------->  (contract still agreed)
+                            (b) LM forecast now passes
+                                its own Commitment:
+                                LM moves its Commitment ----> reads it: `disputed`
+                                                              HQ owner decides ...
+```
+
+A slip that stays inside a team's Commitment changes nothing above the team. A slip past a
+Commitment changes exactly one file per level, the file whose owner moves the promise. Each level
+sees that the level below moved it, and to when, never why; the why stays in the child's plan,
+for those allowed to read it. A worked example is in
+[examples/org/README.md](../examples/org/README.md#how-a-slip-travels).
+
+### 4.4 Prior art
+
+The protocol follows Promise Theory: an agent can only promise its own behaviour, and a request
+is not a promise. A request is an imposition on someone else; a promise is that agent's own answer
+to it. Here `by:` is the request and the Commitment or milestone is the promise. Nobody
+promises on another's behalf, and an unanswered request stays visibly `requested`.
+
+### 4.5 Interfaces and exposure
+
+| Concept | Written by | Where |
+|---|---|---|
+| **ask** (need-by) | parent | `by:` on its link to the child |
+| **promise** | child | `Commitment:` in its header; its milestones' dates |
+| **interface** | child | derived from its own file ([FORMAT §8](FORMAT.md#8-interfaces-and-fronts)) |
 
 Milestones are exposed by default, because they are what a parent wants to see; `#private` keeps
 an internal checkpoint out. The breakdown (tasks, sub-project and deliverable lines) is always
-private: to expose one piece of it, add a milestone that is `after:` it. The rule is in
-[FORMAT §8](FORMAT.md#8-interfaces-and-fronts).
+private: to expose one piece of it, add a milestone that is `after:` it. When the whole plan must
+stay private, the owner keeps a thin **front** file ([FORMAT §8.1](FORMAT.md#81-front-file-across-an-access-boundary)). Front and plan share one owner, so the front's dated lines show slack against the plan's forecast, and a parent sees only the dates.
 
-## 5 What the files look like
+## 5 Everything else is derived
+
+Each of these is computed from the files when asked. None is stored, so none can go stale.
+
+- **Schedule.** Forecast start and end of every node, slack, conflicts
+  ([FORMAT §7](FORMAT.md#7-scheduling)). A declared date says what was promised; the forecast says
+  what will happen. Tools never let the first stand in for the second. A decision someone owes delays
+  what waits on it a day per day.
+- **Contract state.** From the ask and the promise, one hop ([FORMAT §9](FORMAT.md#9-contracts)).
+- **The queue.** `pmd ready`: work to do, and the moves owed (decide, fix, answer, deliver), for one
+  owner, human or agent ([FORMAT §13.1](FORMAT.md#131-tool-views-informative)).
+- **Drivers and the critical path.** `pmd why` names the one constraint that fixed an item's end.
+  The critical path of a large programme is found by following drivers one file at a time, never by
+  a global computation.
+- **Change events.** `pmd changes OLD NEW` reads two versions of one file and lists what moved:
+  the notification feed for parents and children.
+- **Replan proposals.** `pmd replan` proposes the smallest edits to a file's own dates that make it
+  consistent, and lists the promises that would move.
+- **The board.** Four kanban-style columns and a flow forecast, from the same files
+  ([BOARDS.md](BOARDS.md)).
+
+## 6 What the files look like
 
 A project file is a markdown file: an H1 title, a header of `Key: value` list items, then list
 items for the work and milestones. Shape decides meaning; headings only group. The item syntax,
 suffix rules and node kinds are defined in [FORMAT §1-§5](FORMAT.md) and [GRAMMAR.md](GRAMMAR.md).
+Text indented under an item is its description: acceptance criteria, reasons, links to specs.
 Real files: [examples/lunar/hq/lunar-programme.md](../examples/lunar/hq/lunar-programme.md) (the programme) and
 [examples/org/teams/enclosures/](../examples/org/teams/enclosures/) (a team's front and private plan).
 
-When a plan must stay private, its owner keeps a second, ordinary project file, a **front**, which
-the parent links instead. Its milestones are the promise; its deliverable lines point into the
-private plan ([FORMAT §8.1](FORMAT.md#81-front-file-across-an-access-boundary)). The owner's own
-check reads both, so a plan that drifts past its promise shows up there; the parent reads the front only.
+## 7 How files link and where they live
 
-## 6 How files link and where they live
-
-### 6.1 Links
+### 7.1 Links
 
 - Links are real paths or URLs, clickable in any markdown tool. There are no custom schemes.
 - A link line is the only cross-file edge: a sub-project links a file, a deliverable links a
@@ -129,7 +208,7 @@ check reads both, so a plan that drifts past its promise shows up there; the par
 - A milestone deeper than a direct link is reached by the level in between **re-exposing** it,
   as a milestone of its own `after:` the deeper one. Nobody references two levels down.
 
-### 6.2 Where things can live
+### 7.2 Where things can live
 
 The format only holds links. Resolving them, authenticating and enforcing permissions is the job
 of whoever provides or follows the link (the store, a server, the viewer). Typical patterns:
@@ -140,11 +219,11 @@ of whoever provides or follows the link (the store, a server, the viewer). Typic
 | **Separate stores** | the child's front `child.md` (plan elsewhere) | the front only | different units, tools or companies |
 | **Hand-kept or generated front** | a front written by hand or emitted by another tool | the front only | a team that plans in a spreadsheet or database |
 
-Tools may cache what they read; that is a tool concern. History is **not assumed**: delivery dates
-are recorded in the files (`done:`, `Done:`). **No file is special.** There is no root or central
-registry: every project is the top of its own view.
+Tools may cache what they read. History is **not assumed**: delivery dates are recorded in the
+files (`done:`, `Done:`). **No file is special.** There is no root or central registry: every
+project is the top of its own view.
 
-### 6.3 Growing a plan
+### 7.3 Growing a plan
 
 Each step is optional and keeps every file valid; the steps are listed in the
 [README](../README.md#grow-it-gradually-top-down-or-bottom-up). A link with `by:` to a child with
@@ -152,28 +231,7 @@ no promise yet is simply a **requested** contract, which is what makes top-down 
 Bottom-up, an existing team plan is linked into a new parent. Both meet in the same graph
 ([examples/org/](../examples/org/README.md) shows both).
 
-## 7 How it computes
-
-Forecasts are computed from the same files by every tool, so tools agree; they are never written
-down ([FORMAT §7.1](FORMAT.md#71-forecast-algorithm)). A decision someone owes delays what waits on it a day per day.
-
-The **locality rule** ([FORMAT §7.3](FORMAT.md#73-locality-rule)) is the mechanism behind R8: only
-declared dates cross a file boundary, so a tool reads a file and its direct links, never more.
-Contract states are likewise computed when the files are read, never stored
-([FORMAT §9](FORMAT.md#9-contracts)).
-
-A slip moves up one level per decision, never by itself. When the owner of a team moves a promise,
-each level above sees the move on its next read and decides for itself whether to absorb it or move
-its own promise. The step-by-step example is in
-[examples/org/README.md](../examples/org/README.md#how-a-slip-travels). Two properties follow:
-
-- **A slip that stays within a team's Commitment changes nothing above the team.** Its declared
-  dates are unchanged, so every parent still computes the same state.
-- **A slip past a Commitment changes exactly one file per level**, the one whose owner moves the
-  promise. Each level sees that the level below moved it, and to when, never why. The why stays in
-  the child's plan, for those allowed to read it.
-
-## 8 What tools can check
+## 8 What tools can check and show
 
 Checks are grouped by **what they need to read**. Everything except the last row is bounded by the
 number of direct links, never by the size of the graph. Codes and messages are in
@@ -181,7 +239,7 @@ number of direct links, never by the size of the graph. Codes and messages are i
 
 | Scope (reads) | Checks |
 |---|---|
-| **One file** | syntax, dates, duplicate ids, local references, missing owner, near-miss keys (`by: Friday`), forecast conflicts against its own dates and Commitment |
+| **One file** | syntax, dates, duplicate ids, local references, missing owner, near-miss keys (`by: Friday`), dependency cycles, forecast conflicts against its own dates and Commitment |
 | **File + its direct links** (1 + *d* reads) | contract states of every direct link, deliverable targets are exposed milestones, linked local files exist |
 | **Whole reachable graph** (`--deep`, opt-in) | include cycles, plus everything above for every file |
 
@@ -196,17 +254,20 @@ fails, W fails only with `--strict`, I never fails. `--json` gives the same as J
 | `pmd check FILE [--deep] [--strict] [--today D] [--json]` | validate | §8 above |
 | `pmd schedule FILE [--today D] [--json]` | forecast dates and conflicts | file + direct links |
 | `pmd tree FILE [--depth N]` | outline with contract states | file + direct links |
-| `pmd ready FILE... [--deep] [--owner NAME] [--today D] [--json]` | open items that may start now, with owner and forecast end | file + direct links (`--deep`: all linked files) |
+| `pmd ready FILE... [--deep] [--owner NAME] [--today D] [--json]` | the queue: do, decide, fix, answer, deliver | file + direct links (`--deep`: all linked files) |
+| `pmd why FILE [^id] [--deep] [--json]` | what drives an item's end | file + direct links |
+| `pmd changes OLD NEW [--json]` | events between two versions of one file | the two versions |
+| `pmd replan FILE [--write]` | edits that make a file consistent (dry run by default) | file + direct links |
 | `pmd fmt FILE [--check]` | canonical form (rewrites in place unless `--check`) | file |
 
-A typical cycle for one project: `pmd check` (contract states and own conflicts), re-plan if
+A typical cycle for one project: `pmd check` (contract states and own conflicts), `pmd replan` if
 needed, and edit the front if a promise moves. Each owner works on their own schedule; nobody
-orchestrates the whole graph.
+orchestrates the whole graph. Only diagnostics are normative; other output is informative.
 
 ### 8.2 Why it scales
 
 Views, dashboards and bots (the repository's Gantt viewer is one example) inherit their scaling
-from the composition rules, not from clever implementation. The cost of each operation is in
+from the three laws, not from clever implementation. The cost of each operation is in
 [FORMAT §9](FORMAT.md#9-contracts). The reasons it holds:
 
 - **Bounded fan-in.** Everything a level needs about the levels below is already in the promise of
@@ -226,60 +287,59 @@ invisible to the parent, which is intended. Asking for everything at once (a dee
 expanded chart) is opt-in and linear in the graph size; measurements are in
 [BENCHMARKS.md](BENCHMARKS.md).
 
-### 8.3 Working with AI agents
+### 8.3 Humans and agents
 
-Agents are expected to make most edits. The conventions that keep their edits small and safe are
-the agent rules in the [CHEATSHEET](CHEATSHEET.md) and [FORMAT §13](FORMAT.md#13-working-with-tools-and-agents):
-canonical form, a short `AGENTS.md` per folder, diagnostics with fix hints and JSON output, `done:`
-written when ticking, and **edit only what you own**.
+Plans mix humans and agents. Agents make most edits; the conventions that keep their edits small
+and safe are in the [CHEATSHEET](CHEATSHEET.md) and
+[FORMAT §13](FORMAT.md#13-working-with-tools-and-agents): canonical form, a short `AGENTS.md` per
+folder, diagnostics with fix hints and JSON output, `done:` written when ticking, and **edit only
+what you own**.
 
-Plans mix humans and agents. Agents find work with `pmd ready`, claim it by recording `after: <today>`, and show whose it is with `owner:`. A human's queue is `pmd ready --deep ROOT --owner NAME`. A decision a human owes is an open item owned by that human, so its delay shows in the forecast ([FORMAT §7.1](FORMAT.md#71-forecast-algorithm)). This was tested in a simulated mixed team: agents planning a library release with two humans.
+The queue is the same for both. `pmd ready --deep ROOT --owner NAME` lists a person's or an agent's
+work and owed moves. A decision a human owes is an open item owned by that human, so its delay shows in the forecast. Agents claim work by recording
+`after: <today>`. This was tested in a simulated mixed team: agents planning a library release
+with two humans.
 
 ### 8.4 Interoperability
 
-Different tools at different levels must agree. Normative today: the grammar, with a
-language-neutral conformance corpus in `testdata/`, and the semantics in FORMAT. Planned: golden
-tests (input files to expected JSON) and a JSON schema for parser output.
+Different tools at different levels must agree. Normative today: the grammar and FORMAT, with a
+language-neutral conformance corpus in `testdata/` as the arbiter. Planned: golden schedule
+tests (input files to expected JSON) and JSON schemas for tool output.
 
 ## 9 Requirements → concepts
 
 | Req | Met by |
 |---|---|
-| R1 plain text, human + agent | markdown lists; suffix parsed right to left with known keys only; canonical form |
+| R1 plain text, human + agent | markdown lists; suffix parsed right to left with known keys only; canonical form; item descriptions |
 | R2 every file a project | one node model; a checkbox list is a valid plan |
 | R3 time at every level | dates, coarse dates, ranges, calendar durations, `after:` on any node |
-| R4 mixed scheduling | declared vs forecast; one forecast algorithm; one conflict rule |
-| R5 delegation, accountability | `by:` vs `Commitment:`; contract states; own-Commitment conflict; moving a promise is the delay notice; `done:` |
+| R4 mixed scheduling | declared vs forecast; one forecast algorithm; one conflict rule; derivation law |
+| R5 delegation, accountability | the promise protocol: `by:` vs `Commitment:`; states with whose move; moving a promise is the delay notice; `done:` |
 | R6 any storage, any tool | real links; one file type, any tool can emit it; no reliance on history |
 | R7 exposure is the only control | interface = milestones (unless `#private`) + header; breakdown always private; separate stores link only fronts |
-| R8 scale by locality | locality rule; 1 + *d* reads; only promises cross |
+| R8 scale by locality | locality law; 1 + *d* reads; only promises cross |
 | R9 lazy drill-down | links expand one level at a time |
 | R10 grow either way | every intermediate state is valid; `requested` placeholders; any file can be linked later; no special root |
 | R11 no methodology | no workflows or roles; extra header keys are kept as written |
-| R12 format is the product | normative FORMAT and GRAMMAR; conformance corpus; golden tests planned |
+| R12 format is the product | normative FORMAT and GRAMMAR; stability policy; conformance corpus; golden tests planned |
 
 ## 10 Open questions
 
 1. **`#private` noise.** Exposing milestones by default means internal checkpoints need a tag.
    Is that the right default for most teams?
-2. **How asks reach a child.** Currently outside the format (notifications, pull requests, agents).
-   Is a child-side view of "what is asked of me" needed in the core?
-3. **Dependency types.** Only finish-to-start. Enough?
-4. **Gaps from a ticket-tracker or MS Project perspective.** A list of 25 questions is pending
-   review (for example baselines, recurring work, partial completion).
-5. **Working time vs calendar time in durations.** Durations are calendar time today (`1w` = 7
-   days). Should a duration be able to mean working time, and if so how, without calendars in the
-   format?
-6. **Semantics changes after release.** Changing what the format means (for example a new contract
-   state) after a release needs a format version and a `pmd fmt` migration.
-
-7. **Recurring needs.** A need that repeats (one launch vehicle per flight) costs a few lines per instance;
-   a sub-project per instance is the structural answer today. Is a series form ever worth it?
-8. **The "why" without version history.** Reasons for a moved promise go in commit messages, which
-   assume a VCS. Stores without history need a short dated note next to the changed line.
-9. **Item descriptions.** Agents asked for acceptance criteria attached to an item (indented prose under it); today prose is free text.
+2. **Dependency types.** Only finish-to-start. Enough?
+3. **Recurring needs.** A need that repeats (one launch vehicle per flight) costs a few lines per
+   instance; a sub-project per instance is the structural answer today. Is a series form ever worth it?
+4. **The "why" without version history.** Reasons for a moved promise go in item descriptions and
+   commit messages. A description records the latest reason; stores without history lose the earlier ones.
+5. **Working time vs calendar time.** Durations are calendar time (`1w` = 7 days). Should a
+   duration be able to mean working time, and through what extension mechanism, without calendars
+   in the core format?
+6. **Conditional plans.** A plan that depends on a decision (if the gate passes, scope A; else
+   scope B) is written today as two items, one of which is cancelled `[-]` once the gate decides.
+   Is a conditional form worth its complexity?
 
 ## 11 Status
 
-The format is an **early draft (0.2)**. The reference parser, CLI and viewer implement FORMAT.md;
-the open questions in §10 are still open.
+The format is **0.9 (beta)**. The stability policy is in [FORMAT §0](FORMAT.md#0-status-and-stability).
+The reference parser, CLI and viewer implement FORMAT.md; the open questions in §10 are still open.

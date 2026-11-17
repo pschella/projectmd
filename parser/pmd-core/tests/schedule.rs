@@ -13,7 +13,7 @@ fn run(src: &str, today: &str, ifs: &[(&str, Interface)]) -> Project {
 fn fc(p: &Project, title: &str) -> (String, String, bool) {
     let mut r = None;
     p.walk(|n| {
-        if n.title == title || n.link.as_ref().map_or(false, |l| l.text == title) {
+        if n.title == title || n.link.as_ref().is_some_and(|l| l.text == title) {
             let f = n.forecast.unwrap();
             let s = |d: Option<Civil>| d.map(|d| d.to_string()).unwrap_or("null".into());
             r = Some((s(f.start), s(f.end), f.conflict));
@@ -40,7 +40,7 @@ fn duration_chain_starts_today() {
 
 #[test]
 fn months_are_calendar() {
-    let p = run("# T\n\n- [ ] A  2027-01-31 .. 2027-01-31  1m\n", "2027-01-01", &[]);
+    let p = run("# T\n\n- [ ] A  1m  after: 2027-01-31\n", "2027-01-01", &[]);
     assert_eq!(fc(&p, "A").1, "2027-02-27");
 }
 
@@ -63,7 +63,7 @@ fn deliverable_dates_come_from_the_interface_and_local_after_follows() {
 #[test]
 fn cross_file_after_is_not_a_key() {
     let p = parse("a.md", "# T\n\n- [ ] X  2w  after: [p](b.md#ready)\n- [ ] Y  1w  after: b.md\n");
-    assert!(p.nodes[0].keys.get("after").is_none());
+    assert!(!p.nodes[0].keys.contains_key("after"));
     assert_eq!(p.diagnostics.iter().filter(|d| d.code == "W-KEYLIKE").count(), 2, "{:?}", p.diagnostics);
 }
 
@@ -82,7 +82,7 @@ fn subproject_interface_vs_own_by() {
     assert_eq!(fc(&p, "S"), ("2027-05-31".into(), "2027-05-31".into(), false));
     assert_eq!(fc(&p, "U"), ("null".into(), "2027-08-31".into(), false));
     let mut n = None;
-    p.walk(|x| if x.link.as_ref().map_or(false, |l| l.text == "S") { n = Some(x.link_resolved.clone()) });
+    p.walk(|x| if x.link.as_ref().is_some_and(|l| l.text == "S") { n = Some(x.link_resolved.clone()) });
     assert_eq!(n.unwrap().as_deref(), Some("dir/s.md"));
 }
 
@@ -96,7 +96,7 @@ fn bound_conflict_on_subproject() {
 
 #[test]
 fn conflict_detection() {
-    let src = "# T\n\n- Commitment: 2027-06-30\n\n- [ ] 2027-03-01 Gate  ^g\n- [ ] Work  8w  2027-01-04 .. 2027-01-04  ^w\n- [ ] Late gate  after: ^w  2027-02-01\n- [ ] [S](s.md)  by: 2027-07-31\n";
+    let src = "# T\n\n- Commitment: 2027-06-30\n\n- [ ] 2027-03-01 Gate  ^g\n- [ ] Work  8w  after: 2027-01-04  ^w\n- [ ] 2027-02-01 Late gate  after: ^w\n- [ ] [S](s.md)  by: 2027-07-31\n";
     let p = run(src, "2027-01-01", &[("dir/s.md", iface("2027-07-31", &[]))]);
     // Work ends 2027-03-01 (ok); Late gate ends 2027-03-01 > 2027-02-01
     assert!(!fc(&p, "Work").2);
@@ -165,7 +165,7 @@ fn absolute_url_paths_keep_leading_slash() {
 
 #[test]
 fn six_weeks_is_inclusive() {
-    let p = run("# T\n\n- [ ] A  6w  2026-11-14 .. 2026-11-14\n- [ ] B  1d  after: A\n", "2026-11-14", &[]);
+    let p = run("# T\n\n- [ ] A  6w  after: 2026-11-14\n- [ ] B  1d  after: A\n", "2026-11-14", &[]);
     assert_eq!(fc(&p, "A"), ("2026-11-14".into(), "2026-12-25".into(), false));
     let p = run("# T\n\n- [ ] A  6w  ^a\n- [ ] B  1d  after: ^a\n", "2026-11-14", &[]);
     assert_eq!(fc(&p, "A").1, "2026-12-25");
@@ -173,17 +173,19 @@ fn six_weeks_is_inclusive() {
 }
 
 #[test]
-fn parent_spans_own_range_and_children() {
+fn parent_ends_at_its_sub_items_and_its_range_end_only_gives_slack() {
     let src = "# T\n\n- [ ] Concept  2026-11-16 .. 2027-01-22\n  - [ ] Clinic  2027-01-11 .. 2027-01-15\n- [ ] Early  2027-02-01 .. 2027-02-10\n  - [ ] Kid  2027-01-20 .. 2027-02-20\n";
     let p = run(src, "2026-11-14", &[]);
-    assert_eq!(fc(&p, "Concept"), ("2026-11-16".into(), "2027-01-22".into(), false));
-    assert_eq!(fc(&p, "Early"), ("2027-01-20".into(), "2027-02-20".into(), false));
+    // D68: a range with sub-items ends at its latest sub-item; its own end (01-22, 02-10) only gives slack/conflict
+    assert_eq!(fc(&p, "Concept"), ("2026-11-16".into(), "2027-01-15".into(), false));
+    assert_eq!(fc(&p, "Early"), ("2027-01-20".into(), "2027-02-20".into(), true));
 }
 
 #[test]
 fn coarse_range_with_after() {
     let src = "# T\n\n- [ ] 2028-03-31 Tool  ^tool\n- [ ] Ready  2028-Q2 .. 2028-Q3  after: ^tool\n";
     let p = run(src, "2026-11-14", &[]);
+    // a range is a window: start = max(range start, after:), end = the range end
     assert_eq!(fc(&p, "Ready"), ("2028-04-01".into(), "2028-09-30".into(), false));
 }
 
@@ -217,7 +219,7 @@ fn dated_deliverable_forecast_slack_and_conflict() {
     assert_eq!(j["nodes"][0]["kind"], "milestone");
     assert_eq!(j["nodes"][0]["forecast"]["slack_days"], 31);
     let p = run("# T\n\n- [ ] 2027-04-01 [D](c.md#m)\n", "2027-01-01", &ifs);
-    assert_eq!(fc(&p, "D").2, true);
+    assert!(fc(&p, "D").2);
     assert_eq!(codes(&p), vec!["E-CONFLICT"]);
     let j = serde_json::to_value(&p).unwrap();
     assert_eq!(j["nodes"][0]["forecast"]["slack_days"], -30);
@@ -234,8 +236,9 @@ fn slack(p: &Project, title: &str) -> Option<i64> {
 }
 
 #[test]
-fn r2a_slack_is_against_the_earliest_end() {
+fn r2a_slack_is_declared_end_minus_forecast_end() {
     let p = run("# T\n\n- [ ] Pred 2w ^a\n- [ ] 2027-02-01 Ship  after: ^a\n", "2027-01-01", &[]);
+    // D68: Ship is a point on its input's end (01-14); its declared 02-01 gives slack 18
     assert_eq!(slack(&p, "Ship"), Some(18));
     let p = run("# T\n\n- [ ] Pred 3w ^a\n- [ ] 2027-01-10 Ship  after: ^a\n", "2027-01-01", &[]);
     assert_eq!(slack(&p, "Ship"), Some(-11));
@@ -246,7 +249,7 @@ fn r2c_dated_item_with_estimate_is_work_with_a_deadline() {
     let p = run("# T\n\n- [ ] 2027-03-01 Qualify  4w\n- [ ] 2027-01-10 Late  4w\n", "2027-01-01", &[]);
     assert_eq!(fc(&p, "Qualify"), ("2027-01-01".into(), "2027-01-28".into(), false));
     assert_eq!(slack(&p, "Qualify"), Some(32));
-    assert_eq!(fc(&p, "Late").2, true);
+    assert!(fc(&p, "Late").2);
     assert_eq!(codes(&p), vec!["E-CONFLICT"]);
 }
 
@@ -360,17 +363,23 @@ fn r9a_done_file_has_no_conflicts_and_no_clamp() {
 }
 
 #[test]
-fn r9b_dated_deliverable_takes_target_forecast() {
+fn r9b_dated_deliverable_follows_forecast_only_within_one_owner() {
+    // another owner's forecast never crosses the boundary (D69): the declared date does
     let mut c = Interface::default();
     c.milestones.insert("m".into(), parse_c("2027-03-01"));
-    c.forecasts.insert("m".into(), (parse_c("2027-04-10"), Some(parse_c("2027-04-01"))));
+    c.item_forecasts.insert("m".into(), parse_c("2027-04-10"));
     let p = run("# T\n\n- [ ] 2027-03-15 [M](c.md#m)\n", "2027-01-01", &[("dir/c.md", c.clone())]);
+    assert_eq!(fc(&p, "M").1, "2027-03-01");
+    assert!(codes(&p).is_empty());
+    // the same owner: the forecast flows, and the promise is broken by the forecast
+    c.owner = Some("Ann".into());
+    let p = run("# T\n\n- Owner: Ann\n\n- [ ] 2027-03-15 [M](c.md#m)\n", "2027-01-01", &[("dir/c.md", c.clone())]);
     assert_eq!(fc(&p, "M").1, "2027-04-10");
     assert_eq!(codes(&p), vec!["E-CONFLICT"]);
-    c.forecasts.insert("m".into(), (parse_c("2027-03-01"), Some(parse_c("2027-02-20"))));
-    let p = run("# T\n\n- [ ] 2027-03-15 [M](c.md#m)\n", "2027-01-01", &[("dir/c.md", c)]);
+    c.item_forecasts.insert("m".into(), parse_c("2027-02-20"));
+    let p = run("# T\n\n- Owner: Ann\n\n- [ ] 2027-03-15 [M](c.md#m)\n", "2027-01-01", &[("dir/c.md", c)]);
     assert!(codes(&p).is_empty());
-    assert_eq!(fc(&p, "M").1, "2027-03-01");
+    assert_eq!(fc(&p, "M").1, "2027-02-20");
 }
 
 #[test]

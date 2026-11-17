@@ -4,7 +4,8 @@
     ["h", "^#{1,6} .*"], ["k", "^- (?:Owner|Commitment):"], ["c", "\\[[ x-]\\](?=\\s)"],
     ["l", "\\[[^\\]\\n]+\\]\\([^)\\n]+\\)"], ["i", "\\^[\\w-]+"], ["p", "#private\\b"],
     ["k", "\\b(?:owner|after|by|done):"], ["d", "\\b\\d{4}-(?:Q[1-4]|\\d\\d(?:-\\d\\d)?)(?!\\w)"],
-    ["u", "(?<![\\w-])\\d+[wdm]\\b"]
+    ["u", "(?<![\\w-])\\d+[wdm]\\b"],
+    ["g", "^[ \\t]+(?![-*\\d#\\[]|(?:owner|after|by|done):)\\S.*$"]
   ];
   var RE = new RegExp(RULES.map(function (r) { return "(" + r[1] + ")"; }).join("|"), "gm");
   var LANG = /(?:^|\s)language-(?:markdown|md|projectmd)\b/, TOKENS = /\[[ x-]\]|^# |\b(?:owner|after|by|done):|\^[\w-]+/m;
@@ -24,7 +25,21 @@
     code.textContent = ""; code.appendChild(out); code.classList.add("hl");
   }
 
+  function shell(code) {
+    var out = document.createDocumentFragment();
+    code.textContent.split("\n").forEach(function (ln, i) {
+      if (i) out.appendChild(document.createTextNode("\n"));
+      var m = /^(\$ )?(pmd\b.*)$/.exec(ln);
+      if (m) {
+        var p = document.createElement("span"); p.className = "t-pr"; p.textContent = "$ "; out.appendChild(p);
+        var c = document.createElement("span"); c.className = "t-cmd"; c.textContent = m[2]; out.appendChild(c);
+      } else out.appendChild(document.createTextNode(ln));
+    });
+    code.textContent = ""; code.appendChild(out);
+  }
+
   document.querySelectorAll("pre code").forEach(function (c) {
+    if (!/language-/.test(c.className) && /^(?:\$ )?pmd /m.test(c.textContent) && !/^- \[/m.test(c.textContent)) { shell(c); return; }
     var plain = !/language-/.test(c.className);
     if (LANG.test(c.className) || (plain && TOKENS.test(c.textContent))) highlight(c);
   });

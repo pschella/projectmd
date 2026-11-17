@@ -1,0 +1,10 @@
+# Estimate arithmetic (FORMAT 7.1): `ESTIMATE from START => END`, days inclusive.
+# `Nm` adds N calendar months (day clamped to the month's last day), then subtracts one day.
+3d from 2027-03-01 => 2027-03-03
+1d from 2027-03-01 => 2027-03-01
+1w from 2027-01-31 => 2027-02-06
+1m from 2027-01-31 => 2027-02-27
+1m from 2027-02-01 => 2027-02-28
+1m from 2027-01-15 => 2027-02-14
+2m from 2027-12-01 => 2028-01-31
+1m from 2028-01-31 => 2028-02-28

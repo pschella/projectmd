@@ -1,8 +1,8 @@
 //! Canonical spelling of a projectmd file (FORMAT §13). Pure.
 //!
-//! Only list items are rewritten (indent, bullet, checkbox and suffix spacing and order), plus
-//! trailing whitespace and blank lines. Prose, headings, code, comments, front matter and
-//! reference definitions keep their text.
+//! Only list items are rewritten (indent, bullet, checkbox and suffix spacing and order, lowercase keys), plus
+//! trailing whitespace and blank lines. Prose, headings, code, comments and reference
+//! definitions keep their text.
 
 use crate::model::{Suffix, Value, ValueKind};
 use crate::parse::{fence_close, fence_open, parse, parse_heading, parse_item, parse_refdef, split_item, ItemSplit};
@@ -14,21 +14,11 @@ pub fn format(src: &str) -> String {
     let mut stack: Vec<u32> = Vec::new();
     let mut fence: Option<(u8, usize)> = None;
     let mut comment = false;
-    let mut front = false;
+    let mut have_h1 = false;
 
     for (i, raw) in src.lines().enumerate() {
-        if i == 0 && raw == "---" {
-            front = true;
-            w.raw(raw);
-            continue;
-        }
-        if front {
-            if raw == "---" || raw == "..." {
-                front = false;
-            }
-            w.raw(raw);
-            continue;
-        }
+        // `lines()` leaves a lone "\r" on a final line without "\n"; it is a line ending too.
+        let raw = raw.strip_suffix('\r').unwrap_or(raw);
         if let Some((c, len)) = fence {
             if fence_close(raw.as_bytes(), c, len) {
                 fence = None;
@@ -57,9 +47,20 @@ pub fn format(src: &str) -> String {
             w.blank();
             continue;
         }
-        if parse_heading(raw).is_some() {
-            stack.clear();
-            w.content(raw.trim_end(), true);
+        if let Some((level, _)) = parse_heading(raw) {
+            // The first H1 is the title: it does not close list items that precede it.
+            if level == 1 && !have_h1 {
+                have_h1 = true;
+            } else {
+                stack.clear();
+            }
+            let t = raw.trim_end();
+            if parse_heading(t).is_some() {
+                w.content(t, true);
+            } else {
+                // An empty heading: the space after the hashes is what makes it one.
+                w.content(&format!("{t} "), true);
+            }
             continue;
         }
         if parse_refdef(raw).is_some() {
@@ -72,7 +73,10 @@ pub fn format(src: &str) -> String {
             }
             let depth = stack.len();
             stack.push(indent);
-            let line = list_line(depth, body, &proj.refdefs);
+            let mut line = list_line(depth, body, &proj.refdefs);
+            if proj.header_lines.contains(&(i as u32 + 1)) {
+                line = header_line(&line);
+            }
             w.content(&line, false);
             continue;
         }
@@ -96,8 +100,23 @@ fn list_line(
     if b.is_empty() {
         // Keep it a list item (a bare "-" is not one).
         format!("{pad}- ")
+    } else if b.len() == 3 && b.starts_with('[') && b.ends_with(']') && b.len() < body.len() {
+        // An empty-titled checkbox item: the space after "]" is what makes it a task.
+        format!("{pad}- {b} ")
     } else {
         format!("{pad}- {b}")
+    }
+}
+
+/// Header keys are capitalised: `- owner: x` becomes `- Owner: x` (other keys keep their spelling).
+fn header_line(line: &str) -> String {
+    let Some((pre, rest)) = line.split_once("- ") else { return line.to_string() };
+    match rest.split_once(':') {
+        Some((k, v)) if ["owner", "commitment", "done"].contains(&k.to_ascii_lowercase().as_str()) => {
+            let k = k.to_ascii_lowercase();
+            format!("{pre}- {}{}:{v}", k[..1].to_uppercase(), &k[1..])
+        }
+        _ => line.to_string(),
     }
 }
 
@@ -105,7 +124,7 @@ fn render(s: &ItemSplit) -> String {
     let mut line = String::from("- ");
     if let Some(c) = s.checkbox {
         line.push('[');
-        line.push(c);
+        line.push(c.to_ascii_lowercase());
         line.push_str("] ");
     }
     if let Some(l) = &s.lead {
@@ -120,20 +139,17 @@ fn render(s: &ItemSplit) -> String {
     line
 }
 
-/// Suffix parts in canonical order: range, date, duration, tags, keys (after, by, owner,
-/// done, then the rest alphabetically), id.
+/// Suffix parts in canonical order: range, estimate, tags, keys (after, by, owner, done, then
+/// the rest alphabetically), id.
 fn suffix_parts(sf: &Suffix) -> Vec<String> {
     let mut v = Vec::new();
     if let Some(r) = &sf.range {
         v.push(range_text(&r.text));
     }
-    if let Some(d) = &sf.date {
-        v.push(d.text.clone());
-    }
     if let Some(d) = &sf.duration {
         v.push(d.text.clone());
     }
-    v.extend(sf.tags.iter().map(|t| format!("#{t}")));
+    v.extend(sf.tags.iter().map(|t| if t.eq_ignore_ascii_case("private") { "#private".to_string() } else { format!("#{t}") }));
     let first = ["after", "by", "owner", "done"];
     let rest = sf.keys.keys().map(|k| k.as_str()).filter(|k| !first.contains(k));
     for k in first.iter().copied().chain(rest) {
@@ -168,7 +184,7 @@ struct Writer {
 }
 
 impl Writer {
-    /// A line whose text is kept as it is (fences, comments, front matter).
+    /// A line whose text is kept as it is (fences, comments).
     fn raw(&mut self, s: &str) {
         if self.blank && !self.out.is_empty() {
             self.out.push(String::new());

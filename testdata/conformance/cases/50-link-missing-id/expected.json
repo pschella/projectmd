@@ -1,0 +1,11 @@
+{
+  "nodes": [],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "E-REF-MISSING"
+    }
+  ]
+}

@@ -158,10 +158,11 @@ fn leading_date_and_kinds() {
     let n = item("- [ ] 2027-06-30").unwrap();
     assert_eq!((n.kind, n.title.as_str()), (NodeKind::Task, "2027-06-30"));
     assert!(item("- 2027-06-30").is_none());
-    // suffix date: task
+    // 0.9: a trailing date is title text (W-KEYLIKE)
     let n = item("- [ ] Release 2027-06").unwrap();
-    assert_eq!(n.kind, NodeKind::Task);
-    assert_eq!(n.date.as_ref().unwrap().text, "2027-06");
+    assert_eq!((n.kind, n.title.as_str()), (NodeKind::Task, "Release 2027-06"));
+    assert!(n.date.is_none());
+    assert!(parse_str("# T\n\n- [ ] Release 2027-06\n").diagnostics.iter().any(|d| d.code == "W-KEYLIKE"));
     // forms
     for d in ["2027-06", "2027-Q3"] {
         let n = item(&format!("- [ ] {} Beta", d)).unwrap();
@@ -170,15 +171,13 @@ fn leading_date_and_kinds() {
 }
 
 #[test]
-fn leading_range_makes_task_with_range() {
-    for l in ["- [ ] 2026-01 .. 2026-03 Kickoff", "- [ ] 2026-01..2026-03 Kickoff", "- [x] 2026-01..2026-03 Kickoff"] {
-        let n = item(l).unwrap();
+fn a_leading_range_is_not_a_form() {
+    for l in ["- [ ] 2026-01 .. 2026-03 Kickoff", "- [ ] 2026-01..2026-03 Kickoff"] {
+        let p = parse_str(&format!("# T\n\n{}\n", l));
+        let n = &p.nodes[0];
         assert_eq!(n.kind, NodeKind::Task, "{}", l);
-        assert_eq!(n.title, "Kickoff");
-        let r = n.range.as_ref().unwrap();
-        assert_eq!(r.start.to_string(), "2026-01-01");
-        assert_eq!(r.end.to_string(), "2026-03-31");
-        assert!(n.date.is_none());
+        assert!(n.range.is_none() && n.date.is_none());
+        assert!(p.diagnostics.iter().any(|d| d.code == "W-KEYLIKE" && d.message.contains("after the title")), "{:?}", p.diagnostics);
     }
 }
 
@@ -238,8 +237,8 @@ fn civil_days_roundtrip() {
 fn invalid_dates_produce_e_date() {
     let p = parse_str("# T\n\n- [ ] Foo  2027-02-30\n- [ ] 2027-13 Bar\n- [ ] Baz  2027-13 .. 2027-14\n- [ ] Q  2027-Q2 .. 2027-Q1\n- [ ] R  by: 2027-02-30\n");
     let n = p.diagnostics.iter().filter(|d| d.code == "E-DATE").count();
-    assert_eq!(n, 5, "{:?}", p.diagnostics);
-    assert_eq!(p.nodes[0].title, "Foo");
+    assert_eq!(n, 4, "{:?}", p.diagnostics); // a trailing date is title text (W-KEYLIKE), not E-DATE
+    assert_eq!(p.nodes[0].title, "Foo  2027-02-30");
     assert!(p.nodes[0].date.is_none());
     assert_eq!(p.nodes[1].kind, NodeKind::Milestone);
     assert!(p.nodes[1].date.is_none());
@@ -291,14 +290,14 @@ fn property_bullets() {
 }
 
 #[test]
-fn property_bullet_on_heading_and_prose_children_ignored() {
+fn headings_take_no_keys_and_planning_items_under_prose_are_children() {
     let src = "# T\n\n## Phase\n- owner: @jan\n- note\n  - [ ] hidden task\n- [ ] Real\n";
     let p = parse_str(src);
     let h = &p.nodes[0];
     assert_eq!(h.kind, NodeKind::Heading);
-    assert_eq!(h.keys["owner"][0].text, "@jan");
-    assert_eq!(h.children.len(), 1);
-    assert_eq!(h.children[0].title, "Real");
+    assert!(h.keys.is_empty());
+    let t: Vec<&str> = h.children.iter().map(|c| c.title.as_str()).collect();
+    assert_eq!(t, ["hidden task", "Real"]);
 }
 
 #[test]
@@ -313,8 +312,7 @@ fn repeated_non_repeatable_key_is_error() {
 fn header_property_list() {
     let src = "# Aurora  #big\n\n- Owner: Sanne Visser <s@example.org>\n- Stakeholders: Marco <m@example.org>, @board\n- Commitment: 2028-11-30\n- Phase: concept\n- Start date: 2026-01\n\nProse.\n\n- [ ] Task\n";
     let p = parse_str(src);
-    assert_eq!(p.title, "Aurora");
-    assert_eq!(p.suffix.tags, ["big"]);
+    assert_eq!(p.title, "Aurora  #big"); // the H1 carries no suffix
     assert_eq!(p.owner.as_ref().unwrap().name.as_deref(), Some("Sanne Visser"));
     assert_eq!(p.header["stakeholders"], "Marco <m@example.org>, @board");
     assert_eq!(p.commitment.as_ref().unwrap().text, "2028-11-30");
@@ -398,7 +396,7 @@ fn headings_nesting_and_dropping() {
     let src = "# T\n\n## A  2026-11 .. 2027-06\n\n### A1\n\n- [ ] x\n\n## Risks\n\n- prose\n\n## B\n\n- [ ] y\n\n# Second h1\n\n- [ ] z\n";
     let p = parse_str(src);
     let top: Vec<&str> = p.nodes.iter().map(|n| n.title.as_str()).collect();
-    assert_eq!(top, ["A", "B", "Second h1"]);
+    assert_eq!(top, ["A  2026-11 .. 2027-06", "B", "Second h1"]);
     assert!(p.nodes[0].range.is_none(), "headings carry no dates");
     assert_eq!(p.nodes[0].children[0].title, "A1");
     assert_eq!(p.nodes[0].children[0].children[0].title, "x");
@@ -442,7 +440,7 @@ fn crlf_lines() {
 fn duplicate_ids() {
     let p = parse_str("# T\n\n- [ ] a  ^x\n- [ ] b  ^x\n## H  ^x\n- [ ] c\n");
     let dups: Vec<u32> = p.diagnostics.iter().filter(|d| d.code == "E-DUP-ID").map(|d| d.line).collect();
-    assert_eq!(dups, [4, 5]);
+    assert_eq!(dups, [4]); // headings carry no ids
 }
 
 #[test]
@@ -601,5 +599,5 @@ fn graph_messages_show_link_as_written() {
     ]);
     let msgs: Vec<String> = g.check().into_iter().map(|d| d.message).collect();
     assert!(msgs.iter().any(|m| m.starts_with("no item ^nx in ../b/sib.md")), "{:?}", msgs);
-    assert!(msgs.iter().any(|m| m == "linked project not found: gone.md"), "{:?}", msgs);
+    assert!(msgs.iter().any(|m| m == "cannot read file `gone.md`"), "{:?}", msgs);
 }

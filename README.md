@@ -59,19 +59,24 @@ expandable Gantt chart. Anyone can write others: the files are plain markdown an
 
 ![The viewer showing an example programme as a nested Gantt chart](docs/img/gantt.png)
 
-> Status: **early draft.** The format may still change.
+> Status: **format 0.9 — beta.** The format may still change. Website: https://pschella.github.io/projectmd/
 
 ## Documentation
 
 | Document | For |
 |---|---|
+| [docs/TUTORIAL.md](docs/TUTORIAL.md) | A first plan in ten minutes, step by step. |
+| [docs/ADOPTING.md](docs/ADOPTING.md) | Using projectmd in a team or organisation: habits, ownership, CI. |
+| [docs/BOARDS.md](docs/BOARDS.md) | Board-style (kanban or agile) work: the board view and how it maps to the format. |
 | [docs/CHEATSHEET.md](docs/CHEATSHEET.md) | The whole format on one page. Start here, or hand it to an AI agent. |
 | [docs/FORMAT.md](docs/FORMAT.md) | Format reference: the node model, scheduling, interfaces and front files, contracts, validation. |
 | [docs/GRAMMAR.md](docs/GRAMMAR.md) | The precise grammar. It decides how text is parsed. |
 | [docs/DESIGN.md](docs/DESIGN.md) | Why it is designed this way: requirements, concepts, checks. |
 | [docs/VIEWER-CONTRACT.md](docs/VIEWER-CONTRACT.md) | How the reference viewer calls the parser (WebAssembly interface). |
+| [testdata/conformance/](testdata/conformance/README.md) | The conformance suite: golden cases and executable laws that any implementation must pass. |
+| [docs/schema/](docs/schema/) | JSON schemas for the tool outputs (`check`, `ready`, `board`, `why`, `changes`, `replan`, `project`). |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Parser scaling measurements. |
-| [examples/](examples/README.md) | Worked examples: a fictionalised crewed-lunar-landing programme in seven stores (`examples/lunar/`) and a company split across three stores (`examples/org/`). |
+| [examples/](examples/README.md) | Worked examples: a fictionalised crewed-lunar-landing programme (`examples/lunar/`), a company split across three stores (`examples/org/`) and a bakery fit-out (`examples/bakery/`). |
 
 ## Quick start
 
@@ -89,12 +94,20 @@ a sub-project to make it the top level.
 
 ```bash
 cd parser && cargo build --release
-./target/release/pmd check ../examples/lunar/hq/lunar-programme.md          # validate; --deep walks all linked files, --strict fails on warnings
-./target/release/pmd schedule ../examples/lunar/hq/lunar-programme.md       # forecast dates and conflicts
-./target/release/pmd tree ../examples/lunar/hq/lunar-programme.md --depth 2 # outline with contract states
-./target/release/pmd ready ../examples/lunar/hq/lunar-programme.md --deep   # open work that may start now
-./target/release/pmd fmt ../examples/lunar/hq/lunar-programme.md --check    # canonical form? (without --check, rewrites the file)
+./target/release/pmd parse FILE          # print the parsed project as JSON
+./target/release/pmd check FILE...       # validate; --deep walks all linked files, --strict fails on warnings
+./target/release/pmd schedule FILE...    # forecast dates and conflicts
+./target/release/pmd tree FILE...        # outline with contract states (--depth N)
+./target/release/pmd ready FILE...       # the queue: DO, DECIDE, ANSWER, DELIVER, FIX
+./target/release/pmd board FILE...       # the board: waiting, ready, doing, done, flow forecast
+./target/release/pmd why FILE [^id]      # what fixes an item's date, one hop per line
+./target/release/pmd changes OLD NEW     # what moved between two versions of one file
+./target/release/pmd replan FILE         # propose edits that make the file's dates consistent (dry run)
+./target/release/pmd fmt FILE...         # canonical form (--check only reports)
 ```
+
+`check`, `schedule`, `ready`, `board`, `why`, `changes` and `replan` accept `--json`; the output is defined by the schemas in [docs/schema/](docs/schema/).
+`--today D` (or `PMD_TODAY`) fixes the date for reproducible output.
 
 Rebuild the viewer's WebAssembly module with `parser/build-wasm.sh`.
 

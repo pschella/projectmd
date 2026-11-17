@@ -1,0 +1,30 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "milestone",
+      "checkbox": "open",
+      "title": "Gate",
+      "end": "2027-03-10"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Alpha",
+      "start": "2027-03-01",
+      "end": "2027-03-07"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Beta",
+      "start": "2027-03-11",
+      "end": "2027-03-24"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

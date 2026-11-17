@@ -1,0 +1,20 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Review",
+      "end": "2027-03-01",
+      "slack": -28
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "E-CONFLICT"
+    }
+  ]
+}

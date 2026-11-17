@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "milestone",
+      "checkbox": "open",
+      "title": "Gate",
+      "start": "2027-03-07",
+      "end": "2027-03-07",
+      "slack": 13
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

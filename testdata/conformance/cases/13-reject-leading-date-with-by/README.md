@@ -1,0 +1,1 @@
+Pins FORMAT §3.2 rule 1: a leading date plus by: is two declared ends, E-SYNTAX. The by: is after the date so the rejected line raises no E-CONFLICT whichever end a tool picks (no end is defined for a rejected line).

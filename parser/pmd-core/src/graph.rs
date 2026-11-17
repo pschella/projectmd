@@ -112,11 +112,6 @@ pub fn project_links(p: &Project) -> Vec<Link> {
             remote,
         });
     };
-    for (_, vals) in &p.suffix.keys {
-        for v in vals {
-            ref_target(v, |t| add(LinkKind::Reference, 1, t));
-        }
-    }
     p.walk(|n| {
         if let Some(l) = &n.link {
             match n.kind {
@@ -126,29 +121,8 @@ pub fn project_links(p: &Project) -> Vec<Link> {
                 _ => {}
             }
         }
-        for vals in n.keys.values() {
-            for v in vals {
-                ref_target(v, |t| add(LinkKind::Reference, n.line, t));
-            }
-        }
     });
     out
-}
-
-fn ref_target(v: &Value, mut f: impl FnMut(&str)) {
-    match v.kind {
-        ValueKind::Link => {
-            if let Some(t) = &v.target {
-                f(t)
-            }
-        }
-        ValueKind::Word => {
-            if !v.text.starts_with('^') && !v.text.starts_with('@') {
-                f(&v.text)
-            }
-        }
-        _ => {}
-    }
 }
 
 #[derive(Default)]
@@ -226,7 +200,7 @@ impl Graph {
                 let ti = match self.index.get(&l.path) {
                     Some(&t) => t,
                     None => {
-                        d("E-REF-MISSING", format!("linked project not found: {}", shown));
+                        d("E-REF-MISSING", format!("cannot read file `{}`", shown));
                         continue;
                     }
                 };
@@ -245,7 +219,7 @@ impl Graph {
                     });
                     match idx.get(frag.as_str()) {
                         None => d("E-REF-MISSING", format!("no item ^{} in {}{}", frag, shown, self.exposed(ti))),
-                        Some(false) if same_owner(&p.owner, &self.projects[ti].owner) => {}
+                        Some(false) if same_owner_files(&p.owner, &self.projects[ti].owner) => {}
                         Some(false) => d("E-REF-PUBLIC", format!("`{}#{}` is not in its interface{}", shown, frag, self.exposed(ti))),
                         Some(true) => {}
                     }
@@ -286,10 +260,8 @@ impl Graph {
     }
 }
 
-/// Same `Owner:` header text (trimmed): such files may reference any item with an `^id`.
-fn same_owner(a: &Option<crate::model::Value>, b: &Option<crate::model::Value>) -> bool {
-    match (a, b) {
-        (Some(a), Some(b)) => a.text.trim() == b.text.trim(),
-        _ => false,
-    }
+
+/// Do both files have an `Owner:` and is it the same one (any `^id` item is then referable)?
+fn same_owner_files(a: &Option<Value>, b: &Option<Value>) -> bool {
+    matches!((a, b), (Some(a), Some(b)) if same_owner(&a.text, &b.text))
 }

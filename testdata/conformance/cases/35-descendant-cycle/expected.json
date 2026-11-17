@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Phase",
+      "start": "2027-03-01",
+      "end": "2027-03-07"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Sub",
+      "start": "2027-03-01",
+      "end": "2027-03-07"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "E-CYCLE"
+    },
+    {
+      "line": 6,
+      "code": "E-CYCLE"
+    }
+  ]
+}

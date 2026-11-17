@@ -1,0 +1,12 @@
+{
+  "nodes": [],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "delivered",
+      "actor": null
+    }
+  ],
+  "diagnostics": []
+}

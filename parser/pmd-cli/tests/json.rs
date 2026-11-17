@@ -122,3 +122,40 @@ fn check_takes_several_files() {
     assert_eq!(c, c1.max(c2));
     assert!(out.is_empty() || out.contains(':'));
 }
+
+fn run_full(args: &[&str]) -> (i32, String, String) {
+    let out = Command::new(env!("CARGO_BIN_EXE_pmd")).args(args).output().expect("run pmd");
+    (out.status.code().unwrap_or(-1), String::from_utf8_lossy(&out.stdout).into_owned(), String::from_utf8_lossy(&out.stderr).into_owned())
+}
+
+#[test]
+fn version_flags_print_name_and_version() {
+    for flag in ["--version", "-V"] {
+        let (code, out, _) = run_full(&[flag]);
+        assert_eq!(code, 0);
+        assert_eq!(out.trim(), format!("pmd {}", env!("CARGO_PKG_VERSION")));
+    }
+}
+
+#[test]
+fn help_lists_commands_and_exit_codes() {
+    for flag in ["--help", "-h", "help"] {
+        let (code, out, _) = run_full(&[flag]);
+        assert_eq!(code, 0);
+        for w in ["usage: pmd", "parse", "check", "schedule", "ready", "fmt", "tree", "exit codes"] {
+            assert!(out.contains(w), "help for {flag} mentions {w}");
+        }
+    }
+}
+
+#[test]
+fn unknown_command_or_flag_is_a_usage_error() {
+    let file = top();
+    let f = file.to_str().unwrap();
+    for args in [vec!["bogus", f], vec!["check", f, "--bogus"], vec!["check", f, "-x"], vec![]] {
+        let (code, out, err) = run_full(&args);
+        assert_eq!(code, 2, "{args:?}");
+        assert!(out.is_empty());
+        assert!(err.starts_with("usage: pmd"), "{args:?}");
+    }
+}

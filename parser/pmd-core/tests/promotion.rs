@@ -19,7 +19,8 @@ fn both_forms_parse_and_keep_checkbox_id_owner_by_estimate() {
     assert_eq!(nb.kind, NodeKind::Task);
     assert_eq!(na.kind, NodeKind::Subproject);
     assert_eq!(na.title, "Seat concept");
-    for (x, y) in [(nb, na)] {
+    {
+        let (x, y) = (nb, na);
         assert_eq!(x.checkbox, y.checkbox);
         assert_eq!(x.duration, y.duration);
         assert_eq!(x.keys["owner"][0].text, y.keys["owner"][0].text);

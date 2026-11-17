@@ -137,7 +137,7 @@ pub fn parse_date(s: &str) -> DateParse {
                 (Some(m), Some(d)) => (m, d),
                 _ => return DateParse::NotDate,
             };
-            if m < 1 || m > 12 || d < 1 || d > days_in_month(y, m as u8) as u32 {
+            if !(1..=12).contains(&m) || d < 1 || d > days_in_month(y, m as u8) as u32 {
                 return DateParse::Invalid;
             }
             let c = Civil::new(y, m as u8, d as u8);
@@ -146,7 +146,7 @@ pub fn parse_date(s: &str) -> DateParse {
         7 => match b[5] {
             b'Q' => match b[6] {
                 q @ b'1'..=b'4' => {
-                    let q = (q - b'0') as u8;
+                    let q = q - b'0';
                     let m1 = (q - 1) * 3 + 1;
                     let m3 = m1 + 2;
                     DateParse::Ok(Civil::new(y, m1, 1), Civil::new(y, m3, days_in_month(y, m3)))
@@ -155,7 +155,7 @@ pub fn parse_date(s: &str) -> DateParse {
             },
             _ => match dig(&b[5..7]) {
                 Some(m) => {
-                    if m < 1 || m > 12 {
+                    if !(1..=12).contains(&m) {
                         DateParse::Invalid
                     } else {
                         DateParse::Ok(

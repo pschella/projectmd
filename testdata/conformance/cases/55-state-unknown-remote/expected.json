@@ -1,0 +1,17 @@
+{
+  "nodes": [],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "unknown",
+      "actor": "parent"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "W-UNKNOWN"
+    }
+  ]
+}

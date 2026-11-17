@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: parser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: parser
+      # No `cargo fmt --check`: the code deliberately uses long lines and is not rustfmt-formatted.
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
+      - run: cargo build --release
+      - name: Check the lunar example (clean, even with warnings)
+        run: PMD_TODAY=1969-12-31 target/release/pmd check --deep --strict ../examples/lunar/hq/lunar-programme.md
+      - name: Examples are in canonical form
+        run: find ../examples -name '*.md' ! -name README.md -print0 | xargs -0 target/release/pmd fmt --check
+
+  action:
+    # Exercises the composite action at the repo root (action.yml) on the lunar example.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          files: examples/lunar/hq/lunar-programme.md
+          today: 1969-12-31
+          strict: "true"

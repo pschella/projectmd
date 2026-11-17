@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/replan.schema.json",
+  "title": "pmd replan --json output",
+  "description": "The edits that bring a file's dates up to its forecast (informative). `written` is true only with --write.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "edits",
+    "written"
+  ],
+  "properties": {
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "line",
+          "what",
+          "old",
+          "new",
+          "delta_days",
+          "promise"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer"
+          },
+          "what": {
+            "type": "string"
+          },
+          "old": {
+            "type": "string"
+          },
+          "new": {
+            "type": "string"
+          },
+          "delta_days": {
+            "type": "integer"
+          },
+          "promise": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "written": {
+      "type": "boolean"
+    }
+  }
+}

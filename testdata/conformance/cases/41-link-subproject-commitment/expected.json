@@ -1,0 +1,20 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "subproject",
+      "checkbox": "open",
+      "title": "Lunar",
+      "end": "2027-05-31"
+    }
+  ],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "agreed",
+      "actor": "child"
+    }
+  ],
+  "diagnostics": []
+}

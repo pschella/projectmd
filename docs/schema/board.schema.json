@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/board.schema.json",
+  "title": "pmd board --json output",
+  "description": "One file as four columns, with its footer (D66, informative). The same JSON as the wasm export pmd_board.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "file",
+    "columns",
+    "older_done",
+    "wip",
+    "throughput_per_week",
+    "throughput_window_days",
+    "cycle_time",
+    "flow_forecast"
+  ],
+  "properties": {
+    "file": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "object",
+      "required": [
+        "waiting",
+        "ready",
+        "doing",
+        "done"
+      ],
+      "properties": {
+        "waiting": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "title",
+              "owner"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "line": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "waits_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "since": {
+                "type": "string",
+                "format": "date"
+              },
+              "done": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        },
+        "ready": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "title",
+              "owner"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "line": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "waits_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "since": {
+                "type": "string",
+                "format": "date"
+              },
+              "done": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        },
+        "doing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "title",
+              "owner"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "line": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "waits_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "since": {
+                "type": "string",
+                "format": "date"
+              },
+              "done": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "line",
+              "title",
+              "owner"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "line": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "waits_on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "since": {
+                "type": "string",
+                "format": "date"
+              },
+              "done": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          }
+        }
+      }
+    },
+    "older_done": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wip": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "throughput_per_week": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "throughput_window_days": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cycle_time": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "median_days": {
+          "type": "number"
+        },
+        "n": {
+          "type": "integer"
+        }
+      }
+    },
+    "flow_forecast": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "line",
+          "items_left",
+          "about"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "items_left": {
+            "type": "integer"
+          },
+          "about": {
+            "type": "string",
+            "format": "date"
+          },
+          "declared": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "milestone",
+      "checkbox": "open",
+      "title": "Design freeze",
+      "end": "2027-06-30"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

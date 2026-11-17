@@ -1,0 +1,1 @@
+Pins FORMAT §9 (decision order: DISPUTED before OVERDUE). Lunar promises 05-31, later than by: 02-01, so disputed even though by: has passed. Other has no promise and by: has passed, so overdue. Other ends at today 03-01 (§7.3.4 never before today).

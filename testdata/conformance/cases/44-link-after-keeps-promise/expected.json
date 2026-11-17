@@ -1,0 +1,30 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Pre",
+      "start": "2027-04-01",
+      "end": "2027-04-21"
+    },
+    {
+      "line": 6,
+      "kind": "subproject",
+      "checkbox": "open",
+      "title": "Lunar",
+      "end": "2027-05-31",
+      "start": "2027-04-22",
+      "slack": 30
+    }
+  ],
+  "project": {},
+  "contracts": [
+    {
+      "line": 6,
+      "state": "agreed",
+      "actor": "child"
+    }
+  ],
+  "diagnostics": []
+}

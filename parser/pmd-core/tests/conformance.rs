@@ -28,6 +28,11 @@ fn split_suffix(s: &str) -> Vec<String> {
 
 /// Inputs where items.txt disagrees with the (amended) GRAMMAR.md; GRAMMAR wins.
 const KNOWN: &[&str] = &[
+    // format 0.9 removed the bare trailing date: it is title text (with W-KEYLIKE)
+    "- [ ] Release 2027-06",
+    "- [ ] Migrate .. 2027-06",
+    "- [ ] [Cooling](cooling/cooling.md) 2027-06",
+    "- [ ] 2026-10-31 Chemistry  2027-06-30",
     // a title that is one link with a #fragment is a deliverable (GRAMMAR §2.3, 0.2)
     "- [ ] [Spec](spec.md#part)  2w",
     // leading ranges (GRAMMAR §2.2 step 2 amended): task with declared range
@@ -85,14 +90,7 @@ fn conformance_items() {
                 format!("{:?}", n.checkbox).to_lowercase(),
                 if n.kind == NodeKind::Milestone { n.date.as_ref().map(|d| d.text.clone()) } else { None },
                 n.title.clone(),
-                {
-                    let mut s = suffix_set(n);
-                    if let Some(d) = &n.suffix_date {
-                        s.push(format!("date={}", d.text));
-                        s.sort();
-                    }
-                    s
-                },
+                suffix_set(n),
             ),
         };
         let mut why = Vec::new();

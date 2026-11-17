@@ -12,6 +12,7 @@ strings cross the boundary.
 | `pmd_alloc` | `(len: u32) -> u32` | allocate `len` bytes; returns a pointer |
 | `pmd_free` | `(ptr: u32, len: u32)` | free a buffer from `pmd_alloc` or from a result |
 | `pmd_parse` | `(in_ptr: u32, in_len: u32) -> u64` | input: UTF-8 JSON request (below). Returns `(ptr << 32) \| len` of a UTF-8 JSON result, which the caller frees |
+| `pmd_board` | `(in_ptr: u32, in_len: u32) -> u64` | same request as `pmd_parse`, plus optional `owner`. Returns the board of that one file: the JSON of `pmd board --json` (see `docs/schema/board.schema.json`) or `{"error"}` |
 
 ### `pmd_parse` request
 
@@ -68,3 +69,26 @@ Forecast rules follow FORMAT §7.1–7.3:
 - A cancelled node is not waited for.
 
 On a malformed request (invalid JSON, missing or ill-typed `path`/`src`/`today`) the result is `{ "error": "<message>" }`.
+
+## Optional fields and URL state read by the viewer
+
+Every field below may be absent; the viewer falls back to no information without them.
+
+- Node `description` (string): shown as plain text in the detail panel (line breaks kept).
+- Node `driver` and `start_driver` (`{ "kind": string, "line"?: number }`): the constraint that fixed
+  the node's end and start. `line` is the 1-based source line of the node it points at, in the same
+  file. The viewer follows these links to show "Why this date" and to highlight the driver chain.
+- Contract value: a state string, or `{ "state": string, "actor"?: "parent" | "child" }`. The actor is
+  shown beside the "whose move" text.
+- Node `slack` (number of days, or text) on the node or in its `forecast`: shown in the detail panel and the Slack / late column.
+- Node `keys.owner` (`owner:`), `date`/`range`/`duration`, `checkbox`, and `forecast.end` drive the attention bar: "Decisions owed" is an open leaf task with an owner and no date, range or duration whose forecast end is the plan date.
+
+URL state (the viewer keeps these in the address bar; other parameters are preserved):
+
+- `?today=YYYY-MM-DD`: the plan date. Set by the time slider and removed when it is the real date.
+  Same meaning as the parser's `today`.
+- `#L<line>`: the node of the root file at that source line is selected. Restored on load.
+- `?view=board`: the Board view (one `pmd_board` per loaded file, read-only); absent means the Gantt. Switched by the toolbar or the keys `g` / `b`.
+- `?q=<text>`: search text (title, owner, `^id`). `?owner=<name>`: one owner. `?hide_done=1`: done items hidden.
+  `?ms=1`: milestones only. `?attn=<conflict|disputed|overdue|decide|due14|late|tight>`: one attention chip.
+  All are restored on load and written with `history.replaceState`. The optional columns are kept in `localStorage` (`pmd.cols`).

@@ -1,0 +1,19 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "subproject",
+      "checkbox": "done"
+    },
+    {
+      "line": 6,
+      "kind": "subproject",
+      "checkbox": "cancelled",
+      "start": null,
+      "end": null
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

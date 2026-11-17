@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/project.schema.json",
+  "title": "pmd parse / pmd schedule --json output",
+  "description": "A project as JSON (FORMAT \u00a713.1, informative). Top level is open: extra keys are allowed.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "path",
+    "title",
+    "nodes",
+    "diagnostics"
+  ],
+  "properties": {
+    "path": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "owner": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "commitment": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "done": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "refdefs": {
+      "type": "object"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "code",
+          "line"
+        ],
+        "properties": {
+          "severity": {
+            "enum": [
+              "E",
+              "W",
+              "I"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "forecast": {
+      "$ref": "#/$defs/forecast"
+    },
+    "estimate_record": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": [
+        "kind",
+        "line",
+        "checkbox",
+        "title",
+        "keys",
+        "tags",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "task",
+            "milestone",
+            "subproject",
+            "deliverable",
+            "heading"
+          ]
+        },
+        "line": {
+          "type": "integer"
+        },
+        "checkbox": {
+          "enum": [
+            "none",
+            "open",
+            "done",
+            "cancelled"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keys": {
+          "type": "object"
+        },
+        "forecast": {
+          "$ref": "#/$defs/forecast"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "forecast": {
+      "type": "object",
+      "required": [
+        "conflict"
+      ],
+      "properties": {
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "declared_end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "conflict": {
+          "type": "boolean"
+        },
+        "slack_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

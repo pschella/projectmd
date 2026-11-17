@@ -1,0 +1,1 @@
+Pins FORMAT §7.3.1 and §7.7: a point starts the same day as its predecessor ends (Build ends 05-05, so the gate is 05-05, not 05-06); its declared 04-30 is then overrun by 5 days (slack -5), reported on the gate line.

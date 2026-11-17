@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Decide launch site",
+      "start": "2027-03-01",
+      "end": "2027-03-01"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Order",
+      "start": "2027-03-02",
+      "end": "2027-03-15"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

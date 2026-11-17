@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "subproject",
+      "checkbox": "open",
+      "title": "Lunar",
+      "end": "2027-07-31"
+    }
+  ],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "disputed",
+      "actor": "parent"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "W-DISPUTED"
+    }
+  ]
+}

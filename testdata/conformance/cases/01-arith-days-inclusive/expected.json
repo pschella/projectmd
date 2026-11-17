@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Test",
+      "start": "2027-03-01",
+      "end": "2027-03-03"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

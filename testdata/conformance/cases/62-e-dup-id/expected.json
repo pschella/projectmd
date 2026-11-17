@@ -1,0 +1,11 @@
+{
+  "nodes": [],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 6,
+      "code": "E-DUP-ID"
+    }
+  ]
+}

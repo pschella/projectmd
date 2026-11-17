@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "start": "2027-03-01",
+      "end": "2027-03-17",
+      "slack": -3
+    },
+    {
+      "line": 6,
+      "start": "2027-03-01",
+      "end": "2027-03-07"
+    },
+    {
+      "line": 7,
+      "start": "2027-03-08",
+      "end": "2027-03-17"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "E-CONFLICT"
+    }
+  ]
+}

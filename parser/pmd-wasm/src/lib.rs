@@ -93,24 +93,39 @@ pub extern "C" fn pmd_parse(in_ptr: u32, in_len: u32) -> u64 {
     })
 }
 
+/// `pmd_board`: the board of one file (the JSON of `pmd board --json`). Same request as `pmd_parse`,
+/// plus an optional `owner` string that filters the cards as `--owner` does.
+#[no_mangle]
+pub extern "C" fn pmd_board(in_ptr: u32, in_len: u32) -> u64 {
+    let bytes = mem::read(in_ptr, in_len);
+    ret(match std::str::from_utf8(&bytes) {
+        Ok(s) => board_request(s),
+        Err(e) => err(format!("request is not UTF-8: {}", e)),
+    })
+}
+
 // ---- implementation (plain Rust, also used by tests) ----
 
-fn parse_request(req: &str) -> String {
-    let r: J = match serde_json::from_str(req) {
-        Ok(v) => v,
-        Err(e) => return err(format!("bad request: {}", e)),
-    };
+/// A request read and scheduled: the file, today, and the sub-files the request supplied as `src`.
+struct Scheduled {
+    p: Project,
+    today: Civil,
+    kids: std::collections::HashMap<String, Project>,
+}
+
+/// Read `path`, `src`, `today` and the optional `interfaces`, and schedule the file. Errors are the JSON error text.
+fn scheduled(r: &J) -> Result<Scheduled, String> {
     let path = match r.get("path").and_then(J::as_str) {
         Some(p) => p,
-        None => return err("request needs a string `path`"),
+        None => return Err(err("request needs a string `path`")),
     };
     let src = match r.get("src").and_then(J::as_str) {
         Some(p) => p,
-        None => return err("request needs a string `src`"),
+        None => return Err(err("request needs a string `src`")),
     };
     let today = match r.get("today").and_then(J::as_str).map(|t| (t.len() == 10, parse_date(t))) {
         Some((true, DateParse::Ok(c, _))) => c,
-        _ => return err("request needs `today` as YYYY-MM-DD"),
+        _ => return Err(err("request needs `today` as YYYY-MM-DD")),
     };
     let mut ifs = Interfaces::new();
     let mut kids: std::collections::HashMap<String, Project> = std::collections::HashMap::new();
@@ -130,16 +145,46 @@ fn parse_request(req: &str) -> String {
     }
     let mut p = parse(path, src);
     schedule(&mut p, today, &ifs);
+    Ok(Scheduled { p, today, kids })
+}
+
+fn parse_request(req: &str) -> String {
+    let r: J = match serde_json::from_str(req) {
+        Ok(v) => v,
+        Err(e) => return err(format!("bad request: {}", e)),
+    };
+    let s = match scheduled(&r) {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
     // Live one-hop contract states, by line, for links with `by:` whose child `src` was supplied.
-    let lookup = |t: &str| -> Option<Child<'_>> { kids.get(t).map(Child::Read) };
-    let contracts: serde_json::Map<String, J> = contracts_of(&p, today, &lookup).into_iter().map(|c| (c.line.to_string(), json!(c.state.as_str()))).collect();
-    match serde_json::to_value(&p) {
+    let lookup = |t: &str| -> Option<Child<'_>> { s.kids.get(t).map(Child::Read) };
+    let cs = contracts_of(&s.p, s.today, &lookup);
+    let contracts: serde_json::Map<String, J> = cs.iter().map(|c| (c.line.to_string(), json!(c.state.as_str()))).collect();
+    // whose move it is (`actor`: parent or child) and the move itself, by line
+    let moves: serde_json::Map<String, J> = cs.iter().map(|c| (c.line.to_string(), json!({ "actor": c.state.actor(), "move": c.state.move_name() }))).collect();
+    match serde_json::to_value(&s.p) {
         Ok(mut v) => {
             v["contracts"] = J::Object(contracts);
+            v["contract_moves"] = J::Object(moves);
             v.to_string()
         }
         Err(e) => err(e),
     }
+}
+
+fn board_request(req: &str) -> String {
+    let r: J = match serde_json::from_str(req) {
+        Ok(v) => v,
+        Err(e) => return err(format!("bad request: {}", e)),
+    };
+    let s = match scheduled(&r) {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    let owner = r.get("owner").and_then(J::as_str);
+    let lookup = |t: &str| -> Option<Child<'_>> { s.kids.get(t).map(Child::Read) };
+    board_json(&board(&s.p, s.today, owner, &lookup)).to_string()
 }
 
 #[cfg(test)]
@@ -169,6 +214,17 @@ mod tests {
         assert!(p.get("error").is_none(), "{}", p);
         assert_eq!(p["nodes"][0]["forecast"]["end"], "2027-09-30");
         assert_eq!(p["nodes"][0]["forecast"]["declared_end"], "2027-06-30");
+    }
+
+    #[test]
+    fn board_has_the_cli_shape() {
+        let src = "# T\n\n- Owner: A\n\n- [ ] Write  1w  ^w\n- [ ] Ship  1w  after: ^w\n";
+        let req = json!({ "path": "t.md", "src": src, "today": "2027-03-01" });
+        let b = call(pmd_board, &req.to_string());
+        assert!(b.get("error").is_none(), "{}", b);
+        assert_eq!(b["file"], "t.md");
+        assert!(b["columns"]["waiting"].is_array() && b["columns"]["ready"].is_array());
+        assert!(call(pmd_board, "{").get("error").is_some());
     }
 
     #[test]

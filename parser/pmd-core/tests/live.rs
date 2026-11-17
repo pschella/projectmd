@@ -7,7 +7,7 @@ fn p(path: &str, src: &str) -> Project {
 }
 
 fn states(parent: &Project, kids: &[&Project]) -> Vec<(u32, State)> {
-    let lookup = |t: &str| kids.iter().find(|k| k.path == t).map(|k| Child::Read(*k));
+    let lookup = |t: &str| kids.iter().find(|k| k.path == t).map(|k| Child::Read(k));
     contracts_of(parent, Civil::new(2020,1,1), &lookup).into_iter().map(|c| (c.line, c.state)).collect()
 }
 
@@ -33,7 +33,8 @@ fn deliverable_contract_states_are_live() {
     let c = p("c.md", C);
     let a = p("a.md", "# A\n\n- [ ] [M](c.md#m)  by: 2027-09-30\n- [ ] [M2](c.md#m)  by: 2027-03-31\n- [ ] [E](c.md#e)  by: 2027-03-31\n- [ ] [D](c.md#gone)  by: 2027-03-31\n");
     let s: Vec<State> = states(&a, &[&c]).into_iter().map(|x| x.1).collect();
-    assert_eq!(s, [State::Agreed, State::Disputed, State::Delivered, State::Disputed]);
+    // a missing id has no contract state (one E-REF-MISSING on the line instead)
+    assert_eq!(s, [State::Agreed, State::Disputed, State::Delivered]);
 }
 
 #[test]
@@ -80,7 +81,7 @@ fn parent_reads_only_the_front_and_sees_no_error_for_the_private_plan() {
     let own: Vec<_> = g.check().into_iter().filter(|d| d.path == "units/hw.md").collect();
     assert!(own.is_empty(), "{:?}", own);
     assert_eq!(states(&parent, &[&front])[0].1, State::Agreed);
-    let late = p("units/hw.md", &"# HW\n\n- [ ] [Enclosures](../teams/enc/enc.md)  by: 2028-02-28\n");
+    let late = p("units/hw.md", "# HW\n\n- [ ] [Enclosures](../teams/enc/enc.md)  by: 2028-02-28\n");
     assert_eq!(states(&late, &[&front])[0].1, State::Disputed);
 }
 
@@ -103,8 +104,10 @@ fn r8a_need_by_passed_and_not_delivered_is_overdue() {
     let a = p("a.md", "# A\n\n- [ ] [C](c.md)  by: 2027-09-30\n- [ ] [M](c.md#m)  by: 2027-03-31\n- [ ] [E](c.md#e)  by: 2027-03-31\n");
     let lookup = |t: &str| if t == "c.md" { Some(Child::Read(&c)) } else { None };
     let s: Vec<State> = contracts_of(&a, Civil::new(2028, 1, 1), &lookup).into_iter().map(|x| x.state).collect();
-    assert_eq!(s, [State::Overdue, State::Overdue, State::Delivered]);
+    // the milestone promised 2027-06-30 is later than its `by:`: disputed, even though `by:` has passed
+    assert_eq!(s, [State::Overdue, State::Disputed, State::Delivered]);
     let d = contract_diags(&a, Civil::new(2028, 1, 1), &lookup);
     assert_eq!(d[0].code, "W-OVERDUE");
+    assert!(d.iter().any(|d| d.code == "W-DISPUTED" && d.message.contains("promises 2027-06-30")), "{:?}", d);
     assert!(d[0].message.contains("is overdue: needed by 2027-09-30, not delivered"), "{}", d[0].message);
 }

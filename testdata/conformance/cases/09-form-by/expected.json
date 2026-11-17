@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Report",
+      "end": "2027-06-30",
+      "slack": 0
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

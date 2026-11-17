@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Survey",
+      "start": "2027-03-01",
+      "end": "2027-03-14"
+    },
+    {
+      "line": 6,
+      "kind": "milestone",
+      "checkbox": "open",
+      "title": "Gate",
+      "start": "2027-03-14",
+      "end": "2027-03-14",
+      "slack": 47
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Build",
+      "start": "2027-03-15",
+      "end": "2027-03-21"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

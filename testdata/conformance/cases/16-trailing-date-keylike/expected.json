@@ -1,0 +1,19 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Release 2027-06-30",
+      "end": "2027-03-01"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "W-KEYLIKE"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Phase",
+      "start": "2027-03-01",
+      "end": "2027-04-21"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Part A",
+      "start": "2027-04-01",
+      "end": "2027-04-14"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Part B",
+      "start": "2027-04-15",
+      "end": "2027-04-21"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

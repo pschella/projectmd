@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/check.schema.json",
+  "title": "pmd check --json output",
+  "description": "The check report of one or more files (FORMAT section 11, informative). `ok` is false when any error was found.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "diagnostics",
+    "remote",
+    "ok"
+  ],
+  "properties": {
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "severity",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "severity": {
+            "enum": [
+              "E",
+              "W",
+              "I"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "remote": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Remote link targets that were not fetched."
+    },
+    "ok": {
+      "type": "boolean"
+    }
+  }
+}

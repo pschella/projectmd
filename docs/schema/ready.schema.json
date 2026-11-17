@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/ready.schema.json",
+  "title": "pmd ready --json output",
+  "description": "The queue: work that may start now plus the contract moves owed (D59, informative). Top level is an array; extra keys are allowed.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "file",
+      "line",
+      "kind",
+      "title",
+      "owner",
+      "node",
+      "detail",
+      "askers"
+    ],
+    "properties": {
+      "file": {
+        "type": "string"
+      },
+      "line": {
+        "type": "integer"
+      },
+      "kind": {
+        "enum": [
+          "do",
+          "decide",
+          "answer",
+          "deliver"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "owner": {
+        "type": "string"
+      },
+      "node": {
+        "enum": [
+          "task",
+          "milestone"
+        ]
+      },
+      "detail": {
+        "type": "string"
+      },
+      "due": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date"
+      },
+      "declared": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date"
+      },
+      "started": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date"
+      },
+      "askers": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

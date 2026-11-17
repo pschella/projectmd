@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Gamma",
+      "id": "g",
+      "start": "2027-03-22",
+      "end": "2027-03-24"
+    },
+    {
+      "line": 6,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Beta",
+      "id": "b",
+      "start": "2027-03-08",
+      "end": "2027-03-21"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Alpha",
+      "id": "a",
+      "start": "2027-03-01",
+      "end": "2027-03-07"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": []
+}

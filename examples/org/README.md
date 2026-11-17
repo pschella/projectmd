@@ -47,11 +47,13 @@ so nothing is an error and nothing about the breakdown crosses the boundary.
 | software-plan | Data feeds `#timetable-adapter` | 2026-12-15 | `[x]` done 2026-11-06 | delivered |
 | software-plan | Accessibility | 2027-06-30 | none yet | requested |
 
-`pmd check` results (`--today 2026-11-15`): `vellmar.md`, both fronts and all team fronts and
-plans are clean; `displays.md` reports `W-DISPUTED` (Enclosures) and `E-CONFLICT` (its series
-assembly is forecast to end 2028-04-05, after its Commitment 2028-02-29); `software-plan.md`
-reports `W-DISPUTED` (Mobile app) and `I-REQUESTED` (Accessibility). Disputed is a warning, not
-an error: `pmd check --strict` (CI) fails on it, plain `pmd check` passes.
+`pmd check` results (`--today 2026-11-15`): `vellmar.md`, both fronts and all team fronts are clean;
+`displays.md` reports `W-DISPUTED` (Enclosures) and `E-CONFLICT` (its series assembly is forecast to
+end 2028-04-05, after its Commitment 2028-02-29); `software-plan.md` reports `W-DISPUTED` (Mobile app)
+and `I-REQUESTED` (Accessibility). The team plans `backend-plan.md` (forecast 2028-02-05, Commitment
+2028-01-31) and `mobile-app-plan.md` (forecast 2028-04-01, Commitment 2028-02-29) report `E-CONFLICT`.
+Disputed is a warning, not an error: `pmd check --strict` (CI) fails on it, and `software-plan.md`
+(warnings only) passes plain `pmd check`.
 
 ## How a slip travels
 

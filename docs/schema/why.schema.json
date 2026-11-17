@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/schema/why.schema.json",
+  "title": "pmd why --json output",
+  "description": "The chains that fix a date (D60, informative): an array of chains, each an array of hops from the item back to its cause. Extra keys are allowed.",
+  "type": "array",
+  "items": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "title",
+        "owner",
+        "start",
+        "end",
+        "driver"
+      ],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "declared": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "driver": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer"
+            }
+          }
+        },
+        "start_driver": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "child": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

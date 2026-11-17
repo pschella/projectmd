@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "subproject",
+      "checkbox": "open",
+      "title": "Lunar",
+      "end": "2027-05-31"
+    },
+    {
+      "line": 6,
+      "kind": "subproject",
+      "checkbox": "open",
+      "title": "Other",
+      "end": "2027-03-01"
+    }
+  ],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "disputed",
+      "actor": "parent"
+    },
+    {
+      "line": 6,
+      "state": "overdue",
+      "actor": "child"
+    }
+  ],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "W-DISPUTED"
+    },
+    {
+      "line": 6,
+      "code": "W-OVERDUE"
+    }
+  ]
+}

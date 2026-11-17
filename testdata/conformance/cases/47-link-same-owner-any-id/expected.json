@@ -1,0 +1,20 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "deliverable",
+      "checkbox": "open",
+      "title": "Spec",
+      "end": "2027-03-14"
+    }
+  ],
+  "project": {},
+  "contracts": [
+    {
+      "line": 5,
+      "state": "agreed",
+      "actor": "child"
+    }
+  ],
+  "diagnostics": []
+}

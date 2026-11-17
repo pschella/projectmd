@@ -33,3 +33,9 @@ function call(fn, text) {
 
 /** req: {path, src, today, interfaces?} -> Project JSON (or {error}) */
 export function parseProject(req) { return call('pmd_parse', JSON.stringify(req)); }
+
+/** req: the parseProject request, plus optional owner -> board JSON of that file (or {error}) */
+export function boardOf(req) {
+  if (!inst || typeof inst.pmd_board !== 'function') return { error: 'pmd.wasm has no pmd_board export: rebuild it' };
+  return call('pmd_board', JSON.stringify(req));
+}

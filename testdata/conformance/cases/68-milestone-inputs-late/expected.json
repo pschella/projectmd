@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Survey",
+      "start": "2027-03-01",
+      "end": "2027-04-11"
+    },
+    {
+      "line": 6,
+      "kind": "milestone",
+      "checkbox": "open",
+      "title": "Gate",
+      "start": "2027-04-11",
+      "end": "2027-04-11",
+      "slack": -10
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Build",
+      "start": "2027-04-12",
+      "end": "2027-04-18"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 6,
+      "code": "E-CONFLICT"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    {
+      "line": 5,
+      "kind": "heading",
+      "checkbox": "none",
+      "title": "Phase by: 2027-01-05",
+      "start": "2027-03-01",
+      "end": "2027-03-14"
+    },
+    {
+      "line": 7,
+      "kind": "task",
+      "checkbox": "open",
+      "title": "Work",
+      "start": "2027-03-01",
+      "end": "2027-03-14"
+    }
+  ],
+  "project": {},
+  "contracts": [],
+  "diagnostics": [
+    {
+      "line": 5,
+      "code": "W-KEYLIKE"
+    }
+  ]
+}
