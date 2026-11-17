@@ -49,6 +49,8 @@ estimate and no date: it is a decision Noor owes, so it counts as due today and 
 $ pmd ready bakery.md
 bakery.md:6  DO  Hire two bakers  owner: Noor Haddad  due: 2027-03-21
 bakery.md:7  DO  Test menu  owner: Noor Haddad  due: 2027-03-14
+
+2 ready (1 file read)
 ```
 
 `ready` lists work that can start today. The go/no-go is not there: it waits for both.
@@ -91,6 +93,8 @@ for him to answer:
 ```
 $ pmd ready bakery.md --deep --owner Dmitri
 fitout/fitout.md:7  DO  Design  owner: Dmitri Volkov  due: 2027-03-14  started: 2027-03-01
+
+1 ready (3 files read)
 ```
 
 ## 5. Negotiate a date
@@ -116,6 +120,8 @@ dispute is the parent's move, because a promise is what the child can do and `by
 $ pmd ready bakery.md --deep --owner Noor
 bakery.md:7  DO  Hire two bakers  owner: Noor Haddad  due: 2027-03-21
 bakery.md:9  DECIDE  Kitchen fit-out complete  owner: Noor Haddad  due: 2027-05-15  promises 2027-05-25, asked by 2027-05-15
+
+2 ready (3 files read)
 ```
 
 Noor can accept (change her `by:` to 2027-05-25), re-plan, or talk to Dmitri. `pmd check --deep` keeps
@@ -129,6 +135,8 @@ Each person (or agent) asks for their own queue: `do` for work, `decide` for dis
 ```
 $ pmd ready bakery.md --deep --owner Ama
 licences.md:8  DO  Food licence granted  owner: Ama Owusu  due: 2027-04-11  started: 2027-02-15  (declared 2027-04-12)
+
+1 ready (3 files read)
 ```
 
 Finish an item by ticking it and writing the day: `- [x] ... done: 2027-02-20`. Without `done:` the item is
@@ -171,14 +179,14 @@ promise stays with Dmitri's file. Noor can accept the date, or ask Dmitri to mov
 from git:
 
 ```bash
-PMD_TODAY=2027-03-01 ./target/release/pmd changes <(git show HEAD~1:examples/bakery/bakery.md) examples/bakery/bakery.md
+pmd changes <(git show HEAD~1:bakery.md) bakery.md
 ```
 
 `pmd board` shows one file as a board: what waits, what is ready, what is in progress and what is done.
 Its footer gives the flow forecast for each open milestone.
 
 ```bash
-PMD_TODAY=2027-03-01 ./target/release/pmd board examples/bakery/fitout/fitout.md
+pmd board fitout/fitout.md
 ```
 
 Every command is a view. None of them stores state, so you can run them at any time.

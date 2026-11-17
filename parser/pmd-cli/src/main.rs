@@ -448,7 +448,7 @@ fn cmd_ready(files: &[String], today: Civil, owner: Option<&str>, json: bool, de
         if !all.is_empty() {
             println!();
         }
-        println!("{} ready ({} files read)", all.len(), seen.len());
+        println!("{} ready ({} file{} read)", all.len(), seen.len(), if seen.len() == 1 { "" } else { "s" });
     }
     exit(code)
 }

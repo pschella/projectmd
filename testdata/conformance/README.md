@@ -52,7 +52,7 @@ A line that a case rejects (for example E-SYNTAX) may have no node: then no node
 
 The reference implementation does this in `parser/pmd-core/tests/golden.rs`
 (`cargo test -p pmd-core --test golden`). Its laws (`laws.rs`) run the properties of FORMAT §8 and §7.8
-on generated plans; the ownership law also needs the `pmd` binary (`cargo build --release` in `parser/`).
+on generated plans. The ownership law is in `parser/pmd-cli/tests/laws.rs` and runs the `pmd` binary that cargo builds for the test.
 
 ## Adding a case
 

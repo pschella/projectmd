@@ -4,9 +4,6 @@
 //! per law (a parent with a link to a child). Failures print the seed index and both files.
 
 use pmd_core::*;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const PLANS: u64 = 300;
 
@@ -145,57 +142,6 @@ fn derivation_is_order_independent_and_repeatable() {
         assert_eq!(a, b, "plan {}: scheduling twice differs", i);
         assert_eq!(a, c, "plan {}: loading the files in the other order differs", i);
     }
-}
-
-fn pmd_bin() -> PathBuf {
-    let bin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/release/pmd");
-    assert!(bin.exists(), "build the reference binary first: cd parser && cargo build --release");
-    bin
-}
-
-fn run(bin: &Path, dir: &Path, args: &[&str]) {
-    let st = Command::new(bin).current_dir(dir).args(args).output().expect("run pmd");
-    assert!(st.status.code().is_some(), "pmd {:?} did not exit normally", args);
-}
-
-/// Bytes of every file in `dir` except `named`, to check that no other file changed.
-fn others(dir: &Path, named: &str) -> Vec<(String, Vec<u8>)> {
-    let mut v: Vec<(String, Vec<u8>)> = fs::read_dir(dir)
-        .unwrap()
-        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string()))
-        .filter(|n| n != named)
-        .map(|n| (n.clone(), fs::read(dir.join(&n)).unwrap()))
-        .collect();
-    v.sort();
-    v
-}
-
-#[test]
-fn ownership_fmt_and_replan_write_only_their_file() {
-    let bin = pmd_bin();
-    let root = std::env::temp_dir().join(format!("pmd-laws-{}", std::process::id()));
-    for i in 0..PLANS {
-        let p = plan(i);
-        let dir = root.join(format!("p{}", i));
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("parent.md"), &p.parent).unwrap();
-        fs::write(dir.join("child.md"), &p.child).unwrap();
-        fs::write(dir.join("other.md"), "# Other\n\n- Owner: Cy\n\n- [ ] Work  1w\n").unwrap();
-
-        let before = others(&dir, "parent.md");
-        run(&bin, &dir, &["fmt", "parent.md"]);
-        assert_eq!(others(&dir, "parent.md"), before, "plan {}: fmt parent.md changed another file", i);
-
-        let before = others(&dir, "parent.md");
-        run(&bin, &dir, &["replan", "parent.md", "--write", "--today", TODAY]);
-        assert_eq!(others(&dir, "parent.md"), before, "plan {}: replan --write changed another file", i);
-
-        let before = others(&dir, "child.md");
-        run(&bin, &dir, &["fmt", "child.md"]);
-        assert_eq!(others(&dir, "child.md"), before, "plan {}: fmt child.md changed another file", i);
-        fs::remove_dir_all(&dir).ok();
-    }
-    fs::remove_dir_all(&root).ok();
 }
 
 /// Same owner: the forecast flows across the link (D69). The child's Gate is a point on its
