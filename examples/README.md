@@ -5,6 +5,8 @@ Worked examples of the format (see [../docs/FORMAT.md](../docs/FORMAT.md)).
 - [lunar/](lunar/README.md): a trimmed, fictionalised 1961-1969 crewed-lunar-landing programme in seven stores (programme office,
   spacecraft centre, two contractors, launch-vehicle centre, launch centre, research centre). Each store has a front file for its
   parent and a `private/` plan. Open it in the viewer with `?root=/examples/lunar/hq/lunar-programme.md&today=1967-11-15`.
+- [story/](story/README.md): the plan behind [the Story page](../docs/STORY.md) and [Behind the story](../docs/STORY-DETAILS.md): a product launch across four teams, files in different places, people and agents.
+  Open it with `?root=/examples/story/launch.md&today=2027-07-07&cp=1`.
 - [org/](org/README.md): a company in three stores (sales, units, teams), described at the end of this file.
 
 ## Promotion: a task becomes a sub-project

@@ -65,6 +65,8 @@ expandable Gantt chart. Anyone can write others: the files are plain markdown an
 
 | Document | For |
 |---|---|
+| [docs/STORY.md](docs/STORY.md) | What it is for: one launch told through the people (and agents) who plan it. No technical knowledge needed. |
+| [docs/STORY-DETAILS.md](docs/STORY-DETAILS.md) | Behind the story: the same steps with the files, commands and tools. |
 | [docs/TUTORIAL.md](docs/TUTORIAL.md) | A first plan in ten minutes, step by step. |
 | [docs/ADOPTING.md](docs/ADOPTING.md) | Using projectmd in a team or organisation: habits, ownership, CI. |
 | [docs/BOARDS.md](docs/BOARDS.md) | Board-style (kanban or agile) work: the board view and how it maps to the format. |

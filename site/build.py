@@ -7,12 +7,12 @@ import markdown
 ROOT = Path(__file__).resolve().parent.parent
 GH = "https://github.com/pschella/projectmd/blob/main/"
 PAGES = {"DESIGN": ("design", "Design", True), "FORMAT": ("format", "Format", True),
-         "TUTORIAL": ("tutorial", "Tutorial", False), "CHEATSHEET": ("cheatsheet", "Cheat sheet", False),
+         "STORY": ("story", "Story", False), "STORY-DETAILS": ("story-details", "Behind the story", True), "TUTORIAL": ("tutorial", "Tutorial", False), "CHEATSHEET": ("cheatsheet", "Cheat sheet", False),
          "GRAMMAR": ("grammar", "Grammar", False), "ADOPTING": ("adopting", "Adopting", False),
          "BOARDS": ("boards", "Boards", True)}
 LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#4338ca"/><path d="M7 11.5l2.5 2.5L14 8.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="17" y="8" width="9" height="4.5" rx="2.2" fill="#5eead4"/><rect x="8" y="18.5" width="16" height="4.5" rx="2.2" fill="#fff"/></svg>'
 NAV = [("index.html", "projectmd"), ("design.html", "Design"), ("format.html", "Format"),
-       ("tutorial.html", "Tutorial"), ("boards.html", "Boards"), ("cheatsheet.html", "Cheat sheet"), ("grammar.html", "Grammar"),
+       ("story.html", "Story"), ("tutorial.html", "Tutorial"), ("boards.html", "Boards"), ("cheatsheet.html", "Cheat sheet"), ("grammar.html", "Grammar"),
        ("adopting.html", "Adopting"),
        ("viewer/?root=examples/lunar/hq/lunar-programme.md&today=1967-11-15", "Live demo"),
        ("https://github.com/pschella/projectmd", "GitHub")]

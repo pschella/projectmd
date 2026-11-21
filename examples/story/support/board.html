@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support board</title>
+<!--
+  Tomás's kanban: one static page on top of support.md. No server, no build.
+  It reads the file, asks pmd (WebAssembly) for the four columns, and moves a card by editing one line:
+    Ready -> Doing   adds   after: <today>        (and owner:, if the line has none)
+    Doing -> Done    ticks  [x] and adds done: <today>
+  "Open support.md…" edits the real file in place (Chrome/Edge: File System Access API).
+  Otherwise it shows a copy, and "Download" saves your changes.
+-->
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --ind:#4338ca; --bg:#fbfaf7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; gap: 10px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); background: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0 12px 0 0; }
+  header .src { color: var(--muted); font-size: 12.5px; }
+  header .grow { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button.primary { background: var(--ind); border-color: var(--ind); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; }
+  main { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 12px; padding: 16px 18px; }
+  .col { background: #f5f5f4; border-radius: 10px; padding: 8px; min-height: 220px; }
+  .col.drop { outline: 2px dashed var(--ind); }
+  .col h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 6px 10px; display: flex; justify-content: space-between; }
+  .col h2 span { color: var(--muted); font-weight: 500; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .card[draggable=true] { cursor: grab; }
+  .card .t { font-weight: 600; }
+  .card .m { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .card .a { margin-top: 6px; display: flex; gap: 6px; }
+  .card .a button { font-size: 12px; padding: 2px 8px; }
+  .card.ms { border-left: 4px solid var(--ind); }
+  #add { display: flex; gap: 6px; margin-top: 4px; }
+  #add input { flex: 1; min-width: 0; font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
+  footer { padding: 0 18px 18px; color: var(--muted); font-size: 12.5px; }
+  #msg { color: #b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#ececf8; --muted:#a3a3c2; --line:#2c2c46; --ind:#a5b4fc; --bg:#0e0e1a; color-scheme: dark; }
+    header, .card, button, #add input { background: #171728; color: var(--ink); }
+    .col { background: #1b1b30; }
+    button.primary { color: #14143a; }
+    #msg { color: #fcd34d; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Support board</h1>
+  <span class="src" id="src"></span>
+  <span class="grow"></span>
+  <span id="msg"></span>
+  <button id="open" class="primary">Open support.md…</button>
+  <button id="download">Download</button>
+</header>
+<main id="board"></main>
+<footer id="foot"></footer>
+
+<script type="module">
+import { loadPmd, boardOf } from '../../../viewer/pmd.js';
+
+const params = new URLSearchParams(location.search);
+const TODAY = params.get('today') || new Date().toISOString().slice(0, 10);
+const COLS = [['waiting', 'Waiting'], ['ready', 'Ready'], ['doing', 'Doing'], ['done', 'Done']];
+let src = '', name = 'support.md', handle = null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const shortName = (o) => (o || '').replace(/\s*<[^>]*>/, '');
+
+// ---- line edits: the only way this page changes the plan -------------------------------------
+// Tokens are inserted where `pmd fmt` puts them: after: before owner:/done:/^id, done: before ^id.
+function insertBefore(line, re, token) {
+  const m = line.match(re);
+  return m ? line.slice(0, m.index) + '  ' + token + line.slice(m.index) : line.replace(/\s*$/, '') + '  ' + token;
+}
+const DATED_AFTER = /\s{2}after: \d{4}-\d{2}-\d{2}(?=\s{2}|$)/;
+const MOVES = {
+  'ready>doing': (l, who) => {
+    l = insertBefore(l, /\s{2}(owner:|done:|\^[\w-]+\s*$)/, 'after: ' + TODAY);
+    return / owner: /.test(l) || !who ? l : insertBefore(l, /\s{2}(done:|\^[\w-]+\s*$)/, 'owner: ' + who);
+  },
+  'doing>done': (l) => insertBefore(l.replace('- [ ]', '- [x]'), /\s{2}\^[\w-]+\s*$/, 'done: ' + TODAY),
+  'ready>done': (l) => insertBefore(l.replace('- [ ]', '- [x]'), /\s{2}\^[\w-]+\s*$/, 'done: ' + TODAY),
+  'doing>ready': (l) => l.replace(DATED_AFTER, ''),
+  'done>doing': (l) => l.replace('- [x]', '- [ ]').replace(/\s{2}done: \S+/, ''),
+};
+
+async function save() {
+  if (handle) { const w = await handle.createWritable(); await w.write(src); await w.close(); note('Saved to ' + name); }
+  else note('Changed in this copy only. Download to keep it.');
+  render();
+}
+
+async function fresh() {  // re-read first: someone may have edited the file in a text editor meanwhile
+  if (handle) src = await (await handle.getFile()).text();
+}
+
+async function edit(lineNo, expected, change) {
+  await fresh();
+  const lines = src.split('\n');
+  if (lines[lineNo - 1] !== expected) { render(); return note('The file changed meanwhile; reloaded. Try again.'); }
+  lines[lineNo - 1] = change(lines[lineNo - 1]);
+  src = lines.join('\n');
+  await save();
+}
+
+function move(card, from, to) {
+  const fn = MOVES[from + '>' + to];
+  if (!fn) return note(from === 'waiting' ? 'A waiting card moves by itself when what it waits on is done.' : 'Not a move this board makes.');
+  const who = from === 'ready' && to === 'doing' && !/ owner: /.test(card.text) ? prompt('Who takes it?', 'Tomás Reyes') : null;
+  edit(card.line, card.text, (l) => fn(l, who));
+}
+
+async function addCard(title) {
+  await fresh();
+  const lines = src.split('\n');
+  const waiting = boardOf({ path: name, src, today: TODAY }).columns.waiting.map((c) => c.line);
+  const lastItem = Math.max(...lines.map((l, i) => (/^- \[[ x-]\]/.test(l) ? i + 1 : 0)));
+  const at = waiting.length ? Math.min(...waiting) - 1 : lastItem;  // end of the open work, above what waits
+  lines.splice(at, 0, '- [ ] ' + title.trim());
+  src = lines.join('\n');
+  await save();
+}
+
+// ---- view ------------------------------------------------------------------------------------
+function note(s) { $('msg').textContent = s; }
+
+function render() {
+  const b = boardOf({ path: name, src, today: TODAY });
+  if (b.error) { $('board').textContent = b.error; return; }
+  const lines = src.split('\n');
+  $('board').innerHTML = COLS.map(([k, label]) => `
+    <section class="col" data-col="${k}"><h2>${label}<span>${b.columns[k].length}</span></h2>
+      ${b.columns[k].map((c) => {
+        const ms = /^- \[.\] \d{4}-\d{2}-\d{2} /.test(lines[c.line - 1]) ? ' ms' : '';
+        const meta = [shortName(c.owner), c.since && 'since ' + c.since.slice(5), c.done && 'done ' + c.done.slice(5),
+                      c.waits_on && 'waits on ' + c.waits_on.join(', ')].filter(Boolean).join(' · ');
+        const btn = { ready: ['doing', 'Start'], doing: ['done', 'Done'] }[k];
+        return `<div class="card${ms}" draggable="${k !== 'waiting'}" data-line="${c.line}" data-col="${k}">
+          <div class="t">${esc(c.title)}</div><div class="m">${esc(meta)}</div>
+          ${btn ? `<div class="a"><button data-to="${btn[0]}">${btn[1]}</button></div>` : ''}</div>`;
+      }).join('')}
+      ${k === 'ready' ? '<form id="add"><input placeholder="New card" aria-label="New card"><button>Add</button></form>' : ''}
+    </section>`).join('');
+  const wip = Object.entries(b.wip).map(([o, n]) => `${shortName(o)} ${n}`).join(', ') || 'none';
+  const flow = b.flow_forecast.map((f) => `${f.title}: ${f.date || f.end || ''}`).filter((s) => !s.endsWith(': ')).join(' · ');
+  $('foot').innerHTML = `Today ${TODAY} · work in progress: ${esc(wip)}${b.older_done ? ` · ${b.older_done} older done not shown` : ''}${flow ? ' · ' + esc(flow) : ''}
+    <br>Every card is a line in <code>${esc(name)}</code>. This page only edits those lines; open the file in any text editor and it is the same plan.`;
+  wire(lines);
+}
+
+function wire(lines) {
+  const cardOf = (el) => ({ line: +el.dataset.line, col: el.dataset.col, text: lines[el.dataset.line - 1] });
+  document.querySelectorAll('.card button').forEach((bt) =>
+    bt.onclick = () => { const c = cardOf(bt.closest('.card')); move(c, c.col, bt.dataset.to); });
+  document.querySelectorAll('.card[draggable=true]').forEach((el) =>
+    el.ondragstart = (e) => e.dataTransfer.setData('text/plain', el.dataset.line + ' ' + el.dataset.col));
+  document.querySelectorAll('.col').forEach((col) => {
+    col.ondragover = (e) => { e.preventDefault(); col.classList.add('drop'); };
+    col.ondragleave = () => col.classList.remove('drop');
+    col.ondrop = (e) => {
+      e.preventDefault(); col.classList.remove('drop');
+      const [line, from] = e.dataTransfer.getData('text/plain').split(' ');
+      if (from !== col.dataset.col) move({ line: +line, text: lines[line - 1] }, from, col.dataset.col);
+    };
+  });
+  const add = $('add');
+  if (add) add.onsubmit = (e) => { e.preventDefault(); const v = add.querySelector('input').value; if (v.trim()) addCard(v); };
+}
+
+// ---- files -----------------------------------------------------------------------------------
+$('open').onclick = async () => {
+  if (!window.showOpenFilePicker) return note('This browser cannot edit files in place: use Download, or Chrome/Edge.');
+  [handle] = await window.showOpenFilePicker({ types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }] });
+  name = handle.name; src = await (await handle.getFile()).text();
+  $('src').textContent = 'editing ' + name + ' in place'; note(''); render();
+};
+$('download').onclick = () => {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([src], { type: 'text/markdown' })), download: name });
+  a.click(); URL.revokeObjectURL(a.href);
+};
+window.addEventListener('focus', async () => {  // pick up edits made in a text editor
+  if (!handle) return;
+  const fresh = await (await handle.getFile()).text();
+  if (fresh !== src) { src = fresh; render(); }
+});
+
+await loadPmd();
+src = await (await fetch('support.md', { cache: 'no-cache' })).text();
+$('src').textContent = 'a copy of support.md (changes stay in this page)';
+render();
+</script>
+</body>
+</html>
