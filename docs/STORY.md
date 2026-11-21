@@ -61,7 +61,7 @@ approves them. [Behind the story →](STORY-DETAILS.md#3-lena-takes-work-from-he
 
 ![Tomás drags a card on his board; the board writes the change into his plan](img/story/4-kanban.svg)
 
-Tomás wanted a board, so he had an AI build him one in an afternoon. Dragging a card to "Doing"
+Tomás wanted a board, so he asked an AI to build him one. It took a minute. Dragging a card to "Doing"
 writes "started today" into his plan; dragging it to "Done" ticks it off. Inside his team, work flows
 kanban-style, without estimates. To the rest of the project he made exactly one promise: support is
 ready on 1 September. That is the only date anyone else plans on.

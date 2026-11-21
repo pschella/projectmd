@@ -122,7 +122,7 @@ drag into a one-line edit of the file:
 | Doing → Done | ticks `[x]` and adds `done: <today>` |
 | New card | `- [ ] <title>`, below the open work and above what waits |
 
-He didn't write it by hand. He gave an AI assistant this prompt and the projectmd cheat sheet:
+He didn't write it by hand. He gave an AI assistant this prompt and the projectmd cheat sheet, and had a working board a minute later:
 
 ```text
 Write one static HTML file, board.html, that shows support.md as a kanban board.
